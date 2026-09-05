@@ -1,0 +1,140 @@
+name: BTC Setup Export Smoke Test
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/btc_setup_export_smoke_test.yml"
+      - ".github/workflows/btc_setup_export_hourly.yml"
+      - "scripts/export_setup_csv_playwright.mjs"
+      - "setup_v204_tail_coinmetrics_price_mvrv.html"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: btc-setup-export-smoke-test
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Export smoke test
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+
+    env:
+      TZ: UTC
+      REQUIRE_NO_BINANCE_TAIL: "true"
+      REQUIRE_YESTERDAY_UTC: "true"
+      FRESHNESS_GRACE_UTC_HOUR: "15"
+      BLOCK_BINANCE_VISUAL_IN_EXPORT: "true"
+      SETUP_HTML_PATH: "setup_v204_tail_coinmetrics_price_mvrv.html"
+      EXPORT_CSV_PATH: "data/_smoke_btc_setup_export.csv"
+      EXPORT_META_PATH: "data/_smoke_btc_setup_export_meta.json"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Static checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f "$SETUP_HTML_PATH"
+          test -f "scripts/export_setup_csv_playwright.mjs"
+          node --check scripts/export_setup_csv_playwright.mjs
+          python3 -m py_compile btc_setup_notify.py
+          grep -q "playwright-v7-strict-hidden-controls-direct-csv-meta-fix" scripts/export_setup_csv_playwright.mjs
+          grep -q "binanceVisualIntradayBlockedSamples: binanceVisualBlockedSamples" scripts/export_setup_csv_playwright.mjs
+
+      - name: Install Node dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright
+
+      - name: Remove broken Microsoft/Azure apt sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo bash -c '
+            shopt -s nullglob
+            for f in /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
+              if grep -qiE "packages\.microsoft\.com|azure-cli" "$f"; then
+                echo "Removing apt source: $f"
+                rm -f "$f"
+              fi
+            done
+            apt-get update
+          '
+
+      - name: Install Playwright Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx playwright install --with-deps chromium
+
+      - name: Run exporter in smoke-test mode
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/export_setup_csv_playwright.mjs
+
+      - name: Validate smoke outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s "$EXPORT_CSV_PATH"
+          test -s "$EXPORT_META_PATH"
+          node <<'NODE'
+          const fs = require('node:fs');
+          const csvPath = process.env.EXPORT_CSV_PATH;
+          const metaPath = process.env.EXPORT_META_PATH;
+          const csv = fs.readFileSync(csvPath, 'utf8').trim();
+          const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+          const rows = csv.split(/\r?\n/);
+          const header = rows[0].split(',');
+          const requiredCols = [
+            'date',
+            'price_usd',
+            'mvrv',
+            'fair_ratio',
+            'vfl_signal',
+            'fair_sell_price_usd',
+            'fair_buy_price_usd',
+            'fair_reversal_price_usd',
+            'volume_status'
+          ];
+          const missing = requiredCols.filter((c) => !header.includes(c));
+          if (missing.length) throw new Error(`Colunas obrigatórias ausentes: ${missing.join(', ')}`);
+          if (!meta.checks || meta.checks.passed !== true) throw new Error('meta.checks.passed não é true');
+          if (meta.checks.requireNoBinanceTail !== true) throw new Error('requireNoBinanceTail não está true');
+          if (meta.checks.blockBinanceVisualInExport !== true) throw new Error('blockBinanceVisualInExport não está true');
+          if (!meta.last || String(meta.last.volume_status || '').toLowerCase() !== 'real') {
+            throw new Error(`volume_status final não é real: ${meta.last && meta.last.volume_status}`);
+          }
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(String(meta.last.date || ''))) {
+            throw new Error(`data final inválida: ${meta.last && meta.last.date}`);
+          }
+          if (Number(meta.rows) < 1000 || rows.length < 1001) {
+            throw new Error(`CSV pequeno demais: meta.rows=${meta.rows}, linhas=${rows.length}`);
+          }
+          console.log(JSON.stringify({
+            smokeTest: 'PASS',
+            exporter: meta.exporter,
+            rows: meta.rows,
+            lastDate: meta.last.date,
+            lastPrice: meta.last.price_usd,
+            fairRatio: meta.last.fair_ratio,
+            vflSignal: meta.last.vfl_signal,
+            volumeStatus: meta.last.volume_status,
+            requiredMinLastDateUtc: meta.checks.requiredMinLastDateUtc,
+            freshnessMode: meta.checks.freshnessMode,
+            binanceVisualIntradayBlocked: meta.checks.binanceVisualIntradayBlocked
+          }, null, 2));
+          NODE
