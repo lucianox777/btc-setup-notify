@@ -1,0 +1,246 @@
+name: BTC Other Actions Smoke Test
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/btc_other_actions_smoke_test.yml"
+      - ".github/workflows/btc_notify.yml"
+      - ".github/workflows/btc_intraday_lines_watch.yml"
+      - "btc_setup_notify.py"
+      - "btc_intraday_lines_watch.py"
+      - "data/btc_setup_export.csv"
+      - "data/btc_setup_export_meta.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: btc-other-actions-smoke-test
+  cancel-in-progress: true
+
+jobs:
+  notify-smoke:
+    name: Notify smoke test
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+
+    env:
+      TELEGRAM_TOKEN: dummy-token-not-used
+      TELEGRAM_CHAT_ID: dummy-chat-not-used
+      EXPORT_CSV_PATH: data/btc_setup_export.csv
+      ESTADO_PATH: data/_smoke_estado_anterior.json
+      BTC_EXPOSURE_PCT: "0"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install pandas numpy
+
+      - name: Static checks for notify action
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f ".github/workflows/btc_notify.yml"
+          test -f "btc_setup_notify.py"
+          test -s "$EXPORT_CSV_PATH"
+          python -m py_compile btc_setup_notify.py
+          grep -q "python btc_setup_notify.py" .github/workflows/btc_notify.yml
+          grep -q "TELEGRAM_TOKEN" .github/workflows/btc_notify.yml
+          grep -q "TELEGRAM_CHAT_ID" .github/workflows/btc_notify.yml
+
+      - name: Notify formatting smoke test without Telegram send
+        shell: bash
+        run: |
+          set -euo pipefail
+          python <<'PY'
+          import importlib
+          import numpy as np
+          import pandas as pd
+
+          m = importlib.import_module("btc_setup_notify")
+
+          assert "v204.29" in m.RODAPE, m.RODAPE
+          assert abs(m._parse_pct_value("50%") - 0.50) < 1e-9
+          assert abs(m._parse_pct_value("0,50") - 0.50) < 1e-9
+
+          last = pd.Series({
+              "PriceUSD": 77189.0,
+              "EMA4": 77606.67,
+              "mvrv": 1.454,
+              "ret7": -0.022,
+              "vol14": 0.34,
+              "rsi14": 70.0,
+              "halvPhase": "dist",
+              "_vfl_turn_price": 68844.96,
+              "_vfl_turn_mode": "Defesa VFL",
+              "_vfl_turn_direction": "fechamento abaixo ameaça virar vermelho",
+          })
+          dec = {
+              "vfl": 1,
+              "fr": 0.9943,
+              "current_exposure": 0.0,
+              "execution_cap": 0.5,
+          }
+          cap = {
+              "ativa": False,
+              "quase": False,
+              "vfl_verm": False,
+              "vol_ok": False,
+              "dd_ok": False,
+              "dia_ok": True,
+              "volMult": 1.02,
+              "dd60": -0.039,
+              "ret1d": -0.012,
+          }
+          nat = {"emoji": "✔️", "label": "fechamento 03/09", "aviso": None}
+
+          msg = m._corpo(last, dec, cap, nat)
+          required = [
+              "Linha verde diária 1,05",
+              "Linha dourada diária 0,96",
+              "Linha azul diária 0,93 / reversão",
+              "Linha VFL diária/regime",
+              "Leitura diária / recomposição",
+              "Filtro/cap de execução limita novo aumento; não é ordem de venda da posição existente.",
+              "Como a posição atual é 0% e o cap liberado é 50%, a ação prática é comprar até 50%.",
+              "─ Comprar 25% ─",
+          ]
+          missing = [x for x in required if x not in msg]
+          if missing:
+              raise AssertionError("Trechos obrigatórios ausentes: " + ", ".join(missing))
+          if msg.count("Linha verde diária 1,05") != 1:
+              raise AssertionError("Linha verde diária aparece mais de uma vez.")
+          if msg.count("Linha dourada diária 0,96") != 1:
+              raise AssertionError("Linha dourada diária aparece mais de uma vez.")
+          if msg.count("Linha azul diária 0,93 / reversão") != 1:
+              raise AssertionError("Linha azul diária aparece mais de uma vez.")
+          print({"notifySmoke": "PASS", "footer": m.RODAPE})
+          PY
+
+  intraday-smoke:
+    name: Intraday lines smoke test
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+
+    env:
+      TZ: UTC
+      SYMBOL: BTCUSDT
+      PJ1H_MODE: auto
+      PJ1H_DAYS: "105"
+      PJ1H_MANUAL_EMA: "96"
+      INTRADAY_STATE_PATH: data/_smoke_btc_intraday_lines_state.json
+      ALERT_ON_FIRST_RUN: "false"
+      BINANCE_BASE_URLS: https://api.binance.com,https://data-api.binance.vision
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Static checks for intraday action
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f ".github/workflows/btc_intraday_lines_watch.yml"
+          test -f "btc_intraday_lines_watch.py"
+          python3 -m py_compile btc_intraday_lines_watch.py
+          grep -q "python3 btc_intraday_lines_watch.py" .github/workflows/btc_intraday_lines_watch.yml
+          grep -q "INTRADAY_STATE_PATH" .github/workflows/btc_intraday_lines_watch.yml
+          grep -q "TELEGRAM_BOT_TOKEN" .github/workflows/btc_intraday_lines_watch.yml
+          grep -q "TELEGRAM_CHAT_ID" .github/workflows/btc_intraday_lines_watch.yml
+
+      - name: Intraday pure unit smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          import math
+          import btc_intraday_lines_watch as m
+
+          assert m.SCRIPT_VERSION == "btc_intraday_lines_watch_v1.0"
+          assert m.classify_zone(1.0600)[0] == "ACIMA_VERDE"
+          assert m.classify_zone(0.9500)[0] == "ABAIXO_DOURADA"
+          assert m.classify_zone(1.0000)[0] == "ENTRE"
+
+          e = m.ema([100.0, 110.0, 120.0], 2)
+          assert len(e) == 3 and all(math.isfinite(x) for x in e), e
+
+          snap = m.Snapshot(
+              version=m.SCRIPT_VERSION,
+              updated_at="2026-09-04T00:00:00Z",
+              symbol="BTCUSDT",
+              zone="ACIMA_VERDE",
+              previous_zone="ENTRE",
+              subzone="ACIMA_VERDE_1_05",
+              alert_sent=False,
+              alert_reason="",
+              price_now=81750.0,
+              fair_price_now=77857.0,
+              fr_now=1.0500,
+              line_green_105=81750.0,
+              line_golden_096=74743.0,
+              line_blue_093=72407.0,
+              ema_win=96,
+              calibration_mode="manual",
+              calibration_text="EMA manual 96h",
+              last_closed_1h_open_time="04/09 20h UTC",
+              last_closed_1h_close=81200.0,
+              last_closed_1h_fair_price=77800.0,
+              last_closed_1h_fr=1.0437,
+              binance_base_url="https://api.binance.com",
+          )
+          msg = m.build_message(snap)
+          for txt in ["BTC acima da linha verde 1h", "FR 1h agora", "1,05 / redução", "0,96 / recompra", "0,93 / reversão"]:
+              if txt not in msg:
+                  raise AssertionError(f"Trecho ausente na mensagem intraday: {txt}")
+          print({"intradayUnitSmoke": "PASS", "version": m.SCRIPT_VERSION})
+          PY
+
+      - name: Intraday live smoke run without Telegram send
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f "$INTRADAY_STATE_PATH"
+          python3 btc_intraday_lines_watch.py
+
+      - name: Validate intraday smoke output
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s "$INTRADAY_STATE_PATH"
+          python3 <<'PY'
+          import json, math, os
+          path = os.environ["INTRADAY_STATE_PATH"]
+          state = json.load(open(path, encoding="utf-8"))
+          allowed_zones = {"ACIMA_VERDE", "ABAIXO_DOURADA", "ENTRE", "INDEFINIDO"}
+          if state.get("version") != "btc_intraday_lines_watch_v1.0":
+              raise AssertionError(state.get("version"))
+          if state.get("symbol") != "BTCUSDT":
+              raise AssertionError(state.get("symbol"))
+          if state.get("zone") not in allowed_zones:
+              raise AssertionError(state.get("zone"))
+          for key in ["price_now", "fair_price_now", "fr_now", "line_green_105", "line_golden_096", "line_blue_093"]:
+              val = float(state[key])
+              if not math.isfinite(val) or val <= 0:
+                  raise AssertionError(f"{key} inválido: {state[key]}")
+          if state.get("alert_sent") is not False:
+              raise AssertionError("Smoke test não deve enviar alerta Telegram.")
+          print(json.dumps({
+              "intradayLiveSmoke": "PASS",
+              "zone": state["zone"],
+              "fr_now": state["fr_now"],
+              "ema_win": state["ema_win"],
+              "alert_sent": state["alert_sent"],
+          }, ensure_ascii=False, indent=2))
+          PY
