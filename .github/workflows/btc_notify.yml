@@ -1,0 +1,56 @@
+name: BTC Setup — Notificação
+
+on:
+  schedule:
+    - cron: "25 * * * *"   # toda hora, depois da exportação (:17)
+  workflow_dispatch:
+
+concurrency:
+  group: btc-setup-notify-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  notificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5      # execução leve — sem Playwright
+    permissions:
+      contents: write       # para commitar o estado
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependências
+        run: pip install pandas numpy
+
+      - name: Enviar notificação (se houver mudança)
+        env:
+          TELEGRAM_TOKEN:   ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          EXPORT_CSV_PATH:  data/btc_setup_export.csv
+          EXPORT_META_PATH: data/btc_setup_export_meta.json
+          ESTADO_PATH:      data/estado_anterior.json
+        run: python btc_setup_notify.py
+
+      - name: Salvar estado
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Evita conflito se a exportação ou outro run tiver commitado antes do push.
+          git pull --rebase --autostash
+
+          git add data/estado_anterior.json
+          if git diff --staged --quiet; then
+            echo "Estado não mudou; sem commit."
+          else
+            git commit -m "estado: $(date -u +%Y-%m-%dT%H:%M)"
+            git push
+          fi
