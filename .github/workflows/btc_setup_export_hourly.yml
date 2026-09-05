@@ -1,0 +1,111 @@
+name: BTC Setup Export Hourly
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "7 * * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: btc-setup-export-hourly
+  cancel-in-progress: true
+
+jobs:
+  export:
+    name: Export btc_setup_export.csv
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+
+    env:
+      TZ: UTC
+      REQUIRE_NO_BINANCE_TAIL: "true"
+      REQUIRE_YESTERDAY_UTC: "true"
+      FRESHNESS_GRACE_UTC_HOUR: "15"
+      BLOCK_BINANCE_VISUAL_IN_EXPORT: "true"
+      SETUP_HTML_PATH: "setup_v204_tail_coinmetrics_price_mvrv.html"
+      EXPORT_CSV_PATH: "data/btc_setup_export.csv"
+      EXPORT_META_PATH: "data/btc_setup_export_meta.json"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Validate setup HTML path
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Repository root: $PWD"
+          echo "Required SETUP_HTML_PATH=$SETUP_HTML_PATH"
+          test -f "$SETUP_HTML_PATH"
+          mkdir -p data scripts
+
+      - name: Validate exporter script
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f "scripts/export_setup_csv_playwright.mjs"
+          node --check scripts/export_setup_csv_playwright.mjs
+
+      - name: Install Node dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright
+
+      - name: Remove broken Microsoft/Azure apt sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo bash -c '
+            shopt -s nullglob
+            for f in /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
+              if grep -qiE "packages\.microsoft\.com|azure-cli" "$f"; then
+                echo "Removing apt source: $f"
+                rm -f "$f"
+              fi
+            done
+            apt-get update
+          '
+
+      - name: Install Playwright Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx playwright install --with-deps chromium
+
+      - name: Export setup CSV with Playwright
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/export_setup_csv_playwright.mjs
+
+      - name: Validate exported files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s "$EXPORT_CSV_PATH"
+          test -s "$EXPORT_META_PATH"
+          echo "CSV rows: $(wc -l < "$EXPORT_CSV_PATH")"
+          echo "Meta:"
+          cat "$EXPORT_META_PATH"
+
+      - name: Commit export if changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$EXPORT_CSV_PATH" "$EXPORT_META_PATH"
+          if git diff --cached --quiet; then
+            echo "No export changes to commit."
+          else
+            git commit -m "Atualiza export hourly do BTC setup"
+            git push
+          fi
