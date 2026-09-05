@@ -1,0 +1,9 @@
+{
+  "name": "btc-setup-notify",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BTC Setup — exportação automática do CSV via Playwright",
+  "dependencies": {
+    "playwright": "latest"
+  }
+}
