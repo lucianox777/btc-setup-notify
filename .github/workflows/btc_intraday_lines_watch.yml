@@ -1,0 +1,70 @@
+name: BTC Intraday Lines Watch
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "10 * * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: btc-intraday-lines-watch
+  cancel-in-progress: true
+
+env:
+  TZ: UTC
+  SYMBOL: BTCUSDT
+  PJ1H_MODE: auto
+  PJ1H_DAYS: "105"
+  PJ1H_MANUAL_EMA: "96"
+  INTRADAY_STATE_PATH: data/btc_intraday_lines_state.json
+  ALERT_ON_FIRST_RUN: "false"
+  BINANCE_BASE_URLS: https://api.binance.com,https://data-api.binance.vision
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f "btc_intraday_lines_watch.py"
+          mkdir -p data
+
+      - name: Run intraday lines watcher
+        shell: bash
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          set -euo pipefail
+          python3 btc_intraday_lines_watch.py
+
+      - name: Commit state when changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f "$INTRADAY_STATE_PATH" ]; then
+            echo "No intraday state file generated. Nothing to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$INTRADAY_STATE_PATH"
+
+          if git diff --cached --quiet; then
+            echo "Intraday state unchanged. No commit."
+            exit 0
+          fi
+
+          git commit -m "Update BTC intraday line state"
+          git pull --rebase
+          git push
