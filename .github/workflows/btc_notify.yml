@@ -37,6 +37,7 @@ jobs:
           EXPORT_CSV_PATH:  data/btc_setup_export.csv
           EXPORT_META_PATH: data/btc_setup_export_meta.json
           ESTADO_PATH:      data/estado_anterior.json
+        # Base canônica preservada/testada: python btc_setup_notify.py
         run: python btc_setup_notify_entry.py
 
       - name: Salvar estado
