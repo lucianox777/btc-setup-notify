@@ -1,0 +1,134 @@
+name: BTC Notify Message Format Smoke Test
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "btc_setup_notify_entry.py"
+      - ".github/workflows/btc_notify.yml"
+      - ".github/workflows/btc_notify_message_format_smoke_test.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  message-format:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    env:
+      TELEGRAM_TOKEN: dummy-token-not-used
+      TELEGRAM_CHAT_ID: dummy-chat-not-used
+      EXPORT_CSV_PATH: data/btc_setup_export.csv
+      ESTADO_PATH: data/_smoke_estado_anterior.json
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependências
+        run: pip install pandas numpy
+
+      - name: Compilar scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile btc_setup_notify.py btc_setup_notify_entry.py
+          grep -q "python btc_setup_notify_entry.py" .github/workflows/btc_notify.yml
+
+      - name: Validar formato Telegram v204.30
+        shell: bash
+        run: |
+          set -euo pipefail
+          python <<'PY'
+          import pandas as pd
+          import btc_setup_notify_entry as fmt
+
+          last = pd.Series({
+              "time": pd.Timestamp("2026-09-03"),
+              "PriceUSD": 81243.0,
+              "EMA4": 79073.0,
+              "mvrv": 1.529,
+              "ret7": 0.012,
+              "vol14": 0.40,
+              "rsi14": 70.0,
+              "halvPhase": "dist",
+              "_vfl_turn_price": 69941.0,
+              "_vfl_turn_mode": "Defesa VFL (aprox.)",
+              "_vfl_turn_direction": "fechamento abaixo ameaça virar vermelho",
+          })
+          dec = {
+              "emoji": "✅",
+              "op": "COMPRAR",
+              "mot": "2 cards favoráveis",
+              "cards": ["RSI14>65+vol14", "RSI14>70+vol14"],
+              "bloqueios": [],
+              "execution_note": "",
+              "macro_exposure": 1.0,
+              "vfl": 1,
+              "fr": 1.0274,
+              "current_exposure": 0.50,
+              "execution_cap": 0.50,
+          }
+          cap = {
+              "ativa": False,
+              "quase": False,
+              "vfl_verm": False,
+              "vol_ok": False,
+              "dd_ok": False,
+              "dia_ok": False,
+              "volMult": 1.69,
+              "dd60": 0.0,
+          }
+          nat = {"emoji": "✔️", "label": "fechamento 03/09", "aviso": None}
+          ressalvas = [
+              "Ciclo avançado pós-halving: fase dist; manter como diagnóstico/cautela de execução, não como bloqueio operacional."
+          ]
+
+          msg = fmt.montar_mudanca(
+              last, dec, cap, nat,
+              ["Decisão: MANTER 50% → COMPRAR"],
+              ressalvas,
+          )
+
+          obrigatorios = [
+              "✅ *Cards (2)* RSI14>65+vol14, RSI14>70+vol14\n🟢 *VFL*\n🚫 *Bloqueios:* nenhum bloqueio operacional confirmado",
+              "💰 *Fechamento:* $81,243  |  📊 *FR:* 1.0274",
+              "🟢 *1,05 / redução:*",
+              "🟡 *0,96 / recompra:*",
+              "🔵 *0,93 / reversão:*",
+              "🔁 *VFL regime:* US$ 69,941",
+              "_BTC Setup v204.30 · GitHub Actions_",
+          ]
+          faltando = [x for x in obrigatorios if x not in msg]
+          if faltando:
+              raise AssertionError("Trechos obrigatórios ausentes: " + repr(faltando))
+
+          proibidos = [
+              "✔️ _fechamento 03/09_",
+              "📊 *Diário fechado:*",
+              "|  VFL 🟢 verde",
+              "🟢 *Linha verde diária 1,05:*",
+              "🟡 *Linha dourada diária 0,96:*",
+              "🔵 *Linha azul diária 0,93 / reversão:*",
+              "🔁 *Linha VFL diária/regime:*",
+          ]
+          presentes = [x for x in proibidos if x in msg]
+          if presentes:
+              raise AssertionError("Trechos antigos ainda presentes: " + repr(presentes))
+
+          heartbeat = fmt.montar_heartbeat(
+              last, dec, cap, nat,
+              {"date": "2026-09-03"},
+              ressalvas,
+          )
+          if "✅ *Cards (2)* RSI14>65+vol14, RSI14>70+vol14\n🟢 *VFL*\n🚫 *Bloqueios:*" not in heartbeat:
+              raise AssertionError("Cards/VFL não foram restaurados no heartbeat")
+
+          print("BTC notify message format v204.30: PASS")
+          print(msg)
+          PY
