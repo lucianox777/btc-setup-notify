@@ -11,12 +11,12 @@ apresentação da mensagem:
 """
 
 import pandas as pd
-import numpy as np
 
 import btc_setup_notify as base
 
 
 RODAPE = "_BTC Setup v204.30 · GitHub Actions_"
+_ORIGINAL_CORPO = base._corpo
 
 
 def _linha_cards(dec: dict) -> str:
@@ -35,7 +35,7 @@ def _linha_vfl(dec: dict) -> str:
 
 def _corpo(last, dec, cap, nat):
     """Reaproveita o corpo canônico e altera somente o bloco visual de mercado."""
-    original = base._corpo(last, dec, cap, nat)
+    original = _ORIGINAL_CORPO(last, dec, cap, nat)
     linhas = original.splitlines()
 
     # Tudo a partir da linha verde continua canônico; preço/FR são remontados acima.
@@ -114,8 +114,4 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception:
-        # base.main() já faz o tratamento/alerta de erro fatal quando aplicável.
-        raise
+    main()
