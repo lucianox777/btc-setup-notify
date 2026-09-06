@@ -1,0 +1,95 @@
+name: Telegram Integration Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: telegram-integration-test
+  cancel-in-progress: true
+
+jobs:
+  telegram-test:
+    name: Testar token, chat e envio
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+
+    env:
+      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependências do notify
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install pandas numpy
+
+      - name: Testar configuração e envio Telegram
+        shell: bash
+        run: |
+          set -euo pipefail
+          python <<'PY'
+          import json
+          import os
+          import sys
+          import urllib.error
+
+          token = os.environ.get("TELEGRAM_TOKEN", "").strip()
+          chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
+
+          def fail(msg):
+              print(f"::error::{msg}")
+              raise SystemExit(1)
+
+          if not token:
+              fail("Secret TELEGRAM_TOKEN ausente ou vazio.")
+          if not chat_id:
+              fail("Secret TELEGRAM_CHAT_ID ausente ou vazio.")
+          if token.lower().startswith("bot"):
+              fail("TELEGRAM_TOKEN não deve começar com 'bot'; grave somente o token fornecido pelo BotFather.")
+          if "http://" in token.lower() or "https://" in token.lower() or "/" in token:
+              fail("TELEGRAM_TOKEN parece conter uma URL; grave somente o token fornecido pelo BotFather.")
+          if ":" not in token:
+              fail("TELEGRAM_TOKEN não tem o formato esperado do BotFather.")
+
+          import btc_setup_notify as notify
+
+          texto = "🧪 *BTC Setup — teste Telegram OK*\n\nToken, chat e envio pela rotina `btc_setup_notify.enviar()` funcionando."
+
+          try:
+              ok = notify.enviar(token, chat_id, texto)
+          except urllib.error.HTTPError as exc:
+              descricao = ""
+              try:
+                  body = exc.read().decode("utf-8", errors="replace")
+                  data = json.loads(body)
+                  descricao = str(data.get("description", ""))
+              except Exception:
+                  pass
+              detalhe = f": {descricao}" if descricao else ""
+              fail(f"Telegram recusou a chamada: HTTP {exc.code}{detalhe}")
+          except urllib.error.URLError as exc:
+              fail(f"Falha de rede ao acessar Telegram: {exc.reason}")
+          except Exception as exc:
+              fail(f"Falha inesperada no teste Telegram: {type(exc).__name__}: {exc}")
+
+          if not ok:
+              fail("A API do Telegram respondeu sem confirmar ok=true.")
+
+          print("Telegram integration test: PASS")
+          print("TELEGRAM_TOKEN: configurado e aceito")
+          print("TELEGRAM_CHAT_ID: configurado e aceito")
+          print("btc_setup_notify.enviar(): envio confirmado")
+          PY
