@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-07T10:08:42.725Z",
+  "generatedAt": "2026-09-07T16:24:42.982Z",
   "exporter": "playwright-v7-strict-hidden-controls-direct-csv-meta-fix",
   "htmlPath": "setup_v204_tail_coinmetrics_price_mvrv.html",
   "csvPath": "data/btc_setup_export.csv",
@@ -108,7 +108,7 @@
     "signal": 1,
     "volumeStatus": "real",
     "statusText": "BTC CSV carregado e painel calculado. Fonte: standalone CoinMetrics-only sem proxy. Tail: tail CM API: +106d 24/05/2026→06/09/2026 · parcial oficial",
-    "sourceText": "Fonte BTC CSV: download forçado · cache atualizado • linhas brutas: 5.895 • última data CSV: 06/09/2026 • URL: https://raw.githubusercontent.com/coinmetrics/data/refs/heads/master/csv/btc.csv • cache salvo: 07/09/2026, 10:08:00 • tail CM API: +106d 24/05/2026→06/09/2026 · parcial oficial",
+    "sourceText": "Fonte BTC CSV: download forçado · cache atualizado • linhas brutas: 5.895 • última data CSV: 06/09/2026 • URL: https://raw.githubusercontent.com/coinmetrics/data/refs/heads/master/csv/btc.csv • cache salvo: 07/09/2026, 16:23:59 • tail CM API: +106d 24/05/2026→06/09/2026 · parcial oficial",
     "tail": {
       "added": 106,
       "source": "coinmetrics_community_1d",
@@ -132,11 +132,11 @@
     "requireFreshDailyUtc": true,
     "compatibilityEnvRequireYesterdayUtc": true,
     "freshnessGraceUtcHour": 15,
-    "freshnessMode": "grace_accepts_d_minus_2",
-    "requiredMinLastDateUtc": "2026-09-05",
+    "freshnessMode": "strict_requires_d_minus_1",
+    "requiredMinLastDateUtc": "2026-09-06",
     "requireNoBinanceTail": true,
     "blockBinanceVisualInExport": true,
-    "binanceVisualIntradayBlocked": 8,
+    "binanceVisualIntradayBlocked": 10,
     "binanceVisualIntradayBlockedSamples": [
       {
         "method": "GET",
@@ -165,6 +165,14 @@
       {
         "method": "GET",
         "url": "https://fapi.binance.com/futures/data/takerlongshortRatio?symbol=BTCUSDT&period=1d&limit=30"
+      },
+      {
+        "method": "GET",
+        "url": "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=4h&limit=600"
+      },
+      {
+        "method": "GET",
+        "url": "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=4h&limit=600"
       },
       {
         "method": "GET",
