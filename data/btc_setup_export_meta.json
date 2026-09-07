@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-07T04:23:45.178Z",
+  "generatedAt": "2026-09-07T10:08:42.725Z",
   "exporter": "playwright-v7-strict-hidden-controls-direct-csv-meta-fix",
   "htmlPath": "setup_v204_tail_coinmetrics_price_mvrv.html",
   "csvPath": "data/btc_setup_export.csv",
@@ -64,9 +64,9 @@
     "sth_realized_price_usd": "70860.03",
     "sth_ratio": "1.1335018223681192",
     "sth_confirmation": "STH DISTRIBUIÇÃO",
-    "lth_realized_price_usd": "0",
-    "lth_ratio": "NaN",
-    "lth_confirmation": "LTH INDISPONÍVEL",
+    "lth_realized_price_usd": "48824.4",
+    "lth_ratio": "1.6450785496198541",
+    "lth_confirmation": "LTH SAUDÁVEL",
     "cap_real_usd": "1065266434412.2491",
     "cap_real_30d_usd": "8897739419.894897",
     "cap_real_30d_pct": "0.0084229487886891",
@@ -108,7 +108,7 @@
     "signal": 1,
     "volumeStatus": "real",
     "statusText": "BTC CSV carregado e painel calculado. Fonte: standalone CoinMetrics-only sem proxy. Tail: tail CM API: +106d 24/05/2026→06/09/2026 · parcial oficial",
-    "sourceText": "Fonte BTC CSV: download forçado · cache atualizado • linhas brutas: 5.895 • última data CSV: 06/09/2026 • URL: https://raw.githubusercontent.com/coinmetrics/data/refs/heads/master/csv/btc.csv • cache salvo: 07/09/2026, 04:22:46 • tail CM API: +106d 24/05/2026→06/09/2026 · parcial oficial",
+    "sourceText": "Fonte BTC CSV: download forçado · cache atualizado • linhas brutas: 5.895 • última data CSV: 06/09/2026 • URL: https://raw.githubusercontent.com/coinmetrics/data/refs/heads/master/csv/btc.csv • cache salvo: 07/09/2026, 10:08:00 • tail CM API: +106d 24/05/2026→06/09/2026 · parcial oficial",
     "tail": {
       "added": 106,
       "source": "coinmetrics_community_1d",
@@ -136,7 +136,7 @@
     "requiredMinLastDateUtc": "2026-09-05",
     "requireNoBinanceTail": true,
     "blockBinanceVisualInExport": true,
-    "binanceVisualIntradayBlocked": 10,
+    "binanceVisualIntradayBlocked": 8,
     "binanceVisualIntradayBlockedSamples": [
       {
         "method": "GET",
@@ -165,14 +165,6 @@
       {
         "method": "GET",
         "url": "https://fapi.binance.com/futures/data/takerlongshortRatio?symbol=BTCUSDT&period=1d&limit=30"
-      },
-      {
-        "method": "GET",
-        "url": "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=4h&limit=600"
-      },
-      {
-        "method": "GET",
-        "url": "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=4h&limit=600"
       },
       {
         "method": "GET",
