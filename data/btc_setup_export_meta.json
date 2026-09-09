@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-09T14:25:42.282Z",
+  "generatedAt": "2026-09-09T18:30:48.105Z",
   "exporter": "playwright-v7-strict-hidden-controls-direct-csv-meta-fix",
   "htmlPath": "setup_v204_tail_coinmetrics_price_mvrv.html",
   "csvPath": "data/btc_setup_export.csv",
@@ -108,7 +108,7 @@
     "signal": 1,
     "volumeStatus": "real",
     "statusText": "BTC CSV carregado e painel calculado. Fonte: standalone CoinMetrics-only sem proxy. Tail: tail CM API: +108d 24/05/2026→08/09/2026 · parcial oficial",
-    "sourceText": "Fonte BTC CSV: download forçado · cache atualizado • linhas brutas: 5.897 • última data CSV: 08/09/2026 • URL: https://raw.githubusercontent.com/coinmetrics/data/refs/heads/master/csv/btc.csv • cache salvo: 09/09/2026, 14:24:48 • tail CM API: +108d 24/05/2026→08/09/2026 · parcial oficial",
+    "sourceText": "Fonte BTC CSV: download forçado · cache atualizado • linhas brutas: 5.897 • última data CSV: 08/09/2026 • URL: https://raw.githubusercontent.com/coinmetrics/data/refs/heads/master/csv/btc.csv • cache salvo: 09/09/2026, 18:29:50 • tail CM API: +108d 24/05/2026→08/09/2026 · parcial oficial",
     "tail": {
       "added": 108,
       "source": "coinmetrics_community_1d",
@@ -132,11 +132,11 @@
     "requireFreshDailyUtc": true,
     "compatibilityEnvRequireYesterdayUtc": true,
     "freshnessGraceUtcHour": 15,
-    "freshnessMode": "grace_accepts_d_minus_2",
-    "requiredMinLastDateUtc": "2026-09-07",
+    "freshnessMode": "strict_requires_d_minus_1",
+    "requiredMinLastDateUtc": "2026-09-08",
     "requireNoBinanceTail": true,
     "blockBinanceVisualInExport": true,
-    "binanceVisualIntradayBlocked": 10,
+    "binanceVisualIntradayBlocked": 11,
     "binanceVisualIntradayBlockedSamples": [
       {
         "method": "GET",
@@ -177,6 +177,10 @@
       {
         "method": "GET",
         "url": "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=4h&limit=600"
+      },
+      {
+        "method": "GET",
+        "url": "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"
       }
     ],
     "passed": true
