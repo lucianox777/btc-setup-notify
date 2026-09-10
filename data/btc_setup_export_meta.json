@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-10T04:29:15.176Z",
+  "generatedAt": "2026-09-10T09:36:35.353Z",
   "exporter": "playwright-v7-strict-hidden-controls-direct-csv-meta-fix",
   "htmlPath": "setup_v204_tail_coinmetrics_price_mvrv.html",
   "csvPath": "data/btc_setup_export.csv",
@@ -64,9 +64,9 @@
     "sth_realized_price_usd": "71088.01",
     "sth_ratio": "1.1001501464858294",
     "sth_confirmation": "STH AQUECIDO",
-    "lth_realized_price_usd": "0",
-    "lth_ratio": "NaN",
-    "lth_confirmation": "LTH INDISPONÍVEL",
+    "lth_realized_price_usd": "48800.86",
+    "lth_ratio": "1.6025841473876914",
+    "lth_confirmation": "LTH SAUDÁVEL",
     "cap_real_usd": "1065618213441.4056",
     "cap_real_30d_usd": "9461482482.682861",
     "cap_real_30d_pct": "0.008958407597416285",
@@ -108,7 +108,7 @@
     "signal": 1,
     "volumeStatus": "real",
     "statusText": "BTC CSV carregado e painel calculado. Fonte: standalone CoinMetrics-only sem proxy. Tail: tail CM API: +109d 24/05/2026→09/09/2026 · parcial oficial",
-    "sourceText": "Fonte BTC CSV: download forçado · cache atualizado • linhas brutas: 5.898 • última data CSV: 09/09/2026 • URL: https://raw.githubusercontent.com/coinmetrics/data/refs/heads/master/csv/btc.csv • cache salvo: 10/09/2026, 04:28:31 • tail CM API: +109d 24/05/2026→09/09/2026 · parcial oficial",
+    "sourceText": "Fonte BTC CSV: download novo · cache atualizado • linhas brutas: 5.898 • última data CSV: 09/09/2026 • URL: https://raw.githubusercontent.com/coinmetrics/data/refs/heads/master/csv/btc.csv • cache salvo: 10/09/2026, 09:35:52 • tail CM API: +109d 24/05/2026→09/09/2026 · parcial oficial",
     "tail": {
       "added": 109,
       "source": "coinmetrics_community_1d",
