@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-13T22:21:46.786Z",
+  "generatedAt": "2026-09-14T00:57:02.284Z",
   "exporter": "playwright-v7-strict-hidden-controls-direct-csv-meta-fix",
   "htmlPath": "setup_v204_tail_coinmetrics_price_mvrv.html",
   "csvPath": "data/btc_setup_export.csv",
@@ -108,7 +108,7 @@
     "signal": 1,
     "volumeStatus": "real",
     "statusText": "BTC CSV carregado e painel calculado. Fonte: standalone CoinMetrics-only sem proxy. Tail: tail CM API: +112d 24/05/2026→12/09/2026 · parcial oficial",
-    "sourceText": "Fonte BTC CSV: download forçado · cache atualizado • linhas brutas: 5.901 • última data CSV: 12/09/2026 • URL: https://raw.githubusercontent.com/coinmetrics/data/refs/heads/master/csv/btc.csv • cache salvo: 13/09/2026, 22:21:04 • tail CM API: +112d 24/05/2026→12/09/2026 · parcial oficial",
+    "sourceText": "Fonte BTC CSV: download forçado · cache atualizado • linhas brutas: 5.901 • última data CSV: 12/09/2026 • URL: https://raw.githubusercontent.com/coinmetrics/data/refs/heads/master/csv/btc.csv • cache salvo: 14/09/2026, 00:56:22 • tail CM API: +112d 24/05/2026→12/09/2026 · parcial oficial",
     "tail": {
       "added": 112,
       "source": "coinmetrics_community_1d",
@@ -116,10 +116,10 @@
       "from": "2026-05-24",
       "to": "2026-09-12",
       "method": "CoinMetrics Community API asset-metrics 1d · PriceUSD,CapMVRVCur,volume_reported_spot_usd_1d",
-      "requestUrl": "https://community-api.coinmetrics.io/v4/timeseries/asset-metrics?assets=btc&metrics=PriceUSD%2CCapMVRVCur%2Cvolume_reported_spot_usd_1d&frequency=1d&page_size=122",
+      "requestUrl": "https://community-api.coinmetrics.io/v4/timeseries/asset-metrics?assets=btc&metrics=PriceUSD%2CCapMVRVCur%2Cvolume_reported_spot_usd_1d&frequency=1d&page_size=123",
       "expectedFrom": "2026-05-24",
-      "expectedTo": "2026-09-12",
-      "lastApiDate": "2026-09-12",
+      "expectedTo": "2026-09-13",
+      "lastApiDate": "2026-09-13",
       "volumeMetric": "volume_reported_spot_usd_1d",
       "volumeStatus": "real",
       "volumeRealDays": 112,
@@ -132,11 +132,11 @@
     "requireFreshDailyUtc": true,
     "compatibilityEnvRequireYesterdayUtc": true,
     "freshnessGraceUtcHour": 15,
-    "freshnessMode": "strict_requires_d_minus_1",
+    "freshnessMode": "grace_accepts_d_minus_2",
     "requiredMinLastDateUtc": "2026-09-12",
     "requireNoBinanceTail": true,
     "blockBinanceVisualInExport": true,
-    "binanceVisualIntradayBlocked": 10,
+    "binanceVisualIntradayBlocked": 8,
     "binanceVisualIntradayBlockedSamples": [
       {
         "method": "GET",
@@ -165,14 +165,6 @@
       {
         "method": "GET",
         "url": "https://fapi.binance.com/futures/data/takerlongshortRatio?symbol=BTCUSDT&period=1d&limit=30"
-      },
-      {
-        "method": "GET",
-        "url": "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=4h&limit=600"
-      },
-      {
-        "method": "GET",
-        "url": "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=4h&limit=600"
       },
       {
         "method": "GET",
