@@ -1,0 +1,85 @@
+name: Build Setup v204.25 — PnL VFL início
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/build_setup_v204_25_pnl_inicio.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-setup-v204-25-pnl-inicio
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Gerar nova versão
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          src = Path("setup_v204_tail_coinmetrics_price_mvrv.html")
+          dst = Path("setup_v204_tail_coinmetrics_price_mvrv_v204_25.html")
+
+          text = src.read_text(encoding="utf-8")
+
+          # Marca a nova versão sem alterar a lógica operacional.
+          text = text.replace(
+              "<title>Setup v204.24 —",
+              "<title>Setup v204.25 —",
+              1,
+          )
+          marker = "<!-- PATCH_V204_25_VFL_REGIME_START_PRICE -->"
+          if marker not in text:
+              text = text.replace("</title>", "</title>\n" + marker, 1)
+
+          old = "$('mVflPnlSub').textContent=`${regime} · ${vflPnl.days}d desde ${dateBR(vflPnl.start.date)} · ref ${fmt.usd2(priceForExec)}`;"
+          new = "$('mVflPnlSub').innerHTML=`${regime} · ${vflPnl.days}d desde ${dateBR(vflPnl.start.date)}<br>Início: ${fmt.usd2(vflPnl.start.price)}`;"
+
+          if old not in text:
+              raise SystemExit("Trecho esperado do card PnL VFL não encontrado; geração abortada para não alterar versão errada.")
+
+          text = text.replace(old, new, 1)
+          dst.write_text(text, encoding="utf-8")
+
+          # Validações mínimas da alteração.
+          out = dst.read_text(encoding="utf-8")
+          assert "PATCH_V204_25_VFL_REGIME_START_PRICE" in out
+          assert "Início: ${fmt.usd2(vflPnl.start.price)}" in out
+          assert old not in out
+          assert "getCurrentVflRegimePnl" in out
+          print(f"Gerado: {dst} ({dst.stat().st_size} bytes)")
+          PY
+
+      - name: Commitar nova versão
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add setup_v204_tail_coinmetrics_price_mvrv_v204_25.html
+          if git diff --staged --quiet; then
+            echo "Nova versão já está atualizada; sem commit."
+          else
+            git commit -m "Setup v204.25: mostra preço inicial do regime VFL"
+            git push
+          fi
+
+      - name: Publicar artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: setup-v204-25-pnl-inicio
+          path: setup_v204_tail_coinmetrics_price_mvrv_v204_25.html
+          if-no-files-found: error
