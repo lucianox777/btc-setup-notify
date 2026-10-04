@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
 
-const htmlPath = process.env.SETUP_HTML_PATH || 'setup_v204_tail_coinmetrics_price_mvrv.html';
+const htmlPath = process.env.SETUP_HTML_PATH || 'index.html';
 const csvPath = process.env.EXPORT_CSV_PATH || 'data/btc_setup_export.csv';
 const metaPath = process.env.EXPORT_META_PATH || 'data/btc_setup_export_meta.json';
 const requireFreshUtc = String(process.env.REQUIRE_YESTERDAY_UTC || process.env.REQUIRE_FRESH_DAILY_UTC || '').toLowerCase() === 'true';
