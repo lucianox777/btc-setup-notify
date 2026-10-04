@@ -1,0 +1,109 @@
+name: Deploy index.html to Vercel
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "index.html"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vercel-production-index
+  cancel-in-progress: true
+
+env:
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+jobs:
+  deploy:
+    name: Deploy production
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate canonical index
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s index.html
+          test -s vercel.json
+          if find . -maxdepth 1 -type f \( -name 'setup_v204_tail_coinmetrics_price_mvrv.html' -o -name 'setup_v204_tail_coinmetrics_price_mvrv_v*.html' \) -print -quit | grep -q .; then
+            echo "::error::Setup legado encontrado; publique somente index.html."
+            exit 1
+          fi
+
+      - name: Validate Vercel secrets
+        shell: bash
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$VERCEL_TOKEN" || { echo "::error::Defina o secret VERCEL_TOKEN."; exit 1; }
+          test -n "$VERCEL_ORG_ID" || { echo "::error::Defina o secret VERCEL_ORG_ID."; exit 1; }
+          test -n "$VERCEL_PROJECT_ID" || { echo "::error::Defina o secret VERCEL_PROJECT_ID."; exit 1; }
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install Vercel CLI
+        shell: bash
+        run: npm install --global vercel@latest
+
+      - name: Stage static site
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .vercel-deploy
+          mkdir -p .vercel-deploy
+          cp index.html vercel.json .vercel-deploy/
+
+      - name: Pull Vercel production settings
+        shell: bash
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN" --cwd .vercel-deploy
+
+      - name: Build Vercel production output
+        shell: bash
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel build --prod --yes --token="$VERCEL_TOKEN" --cwd .vercel-deploy
+
+      - name: Deploy to Vercel production
+        id: deploy
+        shell: bash
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          DEPLOYMENT_URL="$(vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN" --cwd .vercel-deploy)"
+          echo "DEPLOYMENT_URL=$DEPLOYMENT_URL" >> "$GITHUB_ENV"
+          echo "deployment_url=$DEPLOYMENT_URL" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Vercel production"
+            echo ""
+            echo "Deployment: $DEPLOYMENT_URL"
+            echo ""
+            echo "Source: index.html"
+            echo "v0 project: https://v0.app/luciano777x/btc-setup-notify"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify deployed index
+        shell: bash
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          vercel curl / --deployment "$DEPLOYMENT_URL" --token="$VERCEL_TOKEN" --cwd .vercel-deploy > /tmp/vercel-index.html
+          grep -qi '<!DOCTYPE html>' /tmp/vercel-index.html
+          grep -q 'PATCH_V204_25_VFL_REGIME_START_PRICE' /tmp/vercel-index.html
+          echo "Deploy verificado: $DEPLOYMENT_URL"
