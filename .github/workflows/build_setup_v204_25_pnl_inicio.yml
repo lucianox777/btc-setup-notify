@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - "index.html"
+      - "*.html"
       - ".github/workflows/build_setup_v204_25_pnl_inicio.yml"
 
 permissions:
