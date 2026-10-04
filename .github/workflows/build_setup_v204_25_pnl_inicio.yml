@@ -31,7 +31,7 @@ jobs:
           from pathlib import Path
 
           src = Path("setup_v204_tail_coinmetrics_price_mvrv.html")
-          dst = Path("setup_v204_tail_coinmetrics_price_mvrv_v204_25.html")
+          dst = Path("index.html")
 
           text = src.read_text(encoding="utf-8")
 
@@ -69,7 +69,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add setup_v204_tail_coinmetrics_price_mvrv_v204_25.html
+          git add index.html
           if git diff --staged --quiet; then
             echo "Nova versão já está atualizada; sem commit."
           else
@@ -81,5 +81,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: setup-v204-25-pnl-inicio
-          path: setup_v204_tail_coinmetrics_price_mvrv_v204_25.html
+          path: index.html
           if-no-files-found: error
