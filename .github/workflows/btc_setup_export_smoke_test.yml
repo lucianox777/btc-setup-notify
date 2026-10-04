@@ -7,7 +7,7 @@ on:
       - ".github/workflows/btc_setup_export_smoke_test.yml"
       - ".github/workflows/btc_setup_export_hourly.yml"
       - "scripts/export_setup_csv_playwright.mjs"
-      - "setup_v204_tail_coinmetrics_price_mvrv.html"
+      - "index.html"
 
 permissions:
   contents: read
@@ -28,7 +28,7 @@ jobs:
       REQUIRE_YESTERDAY_UTC: "true"
       FRESHNESS_GRACE_UTC_HOUR: "15"
       BLOCK_BINANCE_VISUAL_IN_EXPORT: "true"
-      SETUP_HTML_PATH: "setup_v204_tail_coinmetrics_price_mvrv.html"
+      SETUP_HTML_PATH: "index.html"
       EXPORT_CSV_PATH: "data/_smoke_btc_setup_export.csv"
       EXPORT_META_PATH: "data/_smoke_btc_setup_export_meta.json"
 
