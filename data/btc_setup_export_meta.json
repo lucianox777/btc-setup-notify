@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-04T05:41:39.024Z",
+  "generatedAt": "2026-10-04T12:14:51.622Z",
   "exporter": "playwright-v7-strict-hidden-controls-direct-csv-meta-fix",
   "htmlPath": "index.html",
   "csvPath": "data/btc_setup_export.csv",
@@ -108,7 +108,7 @@
     "signal": 1,
     "volumeStatus": "real",
     "statusText": "BTC CSV carregado e painel calculado. Fonte: standalone CoinMetrics-only sem proxy. Tail: tail CM API: +133d 24/05/2026→03/10/2026 · parcial oficial",
-    "sourceText": "Fonte BTC CSV: download forçado · cache atualizado • linhas brutas: 5.922 • última data CSV: 03/10/2026 • URL: https://raw.githubusercontent.com/coinmetrics/data/refs/heads/master/csv/btc.csv • cache salvo: 04/10/2026, 05:40:44 • tail CM API: +133d 24/05/2026→03/10/2026 · parcial oficial",
+    "sourceText": "Fonte BTC CSV: download novo · cache atualizado • linhas brutas: 5.922 • última data CSV: 03/10/2026 • URL: https://raw.githubusercontent.com/coinmetrics/data/refs/heads/master/csv/btc.csv • cache salvo: 04/10/2026, 12:14:09 • tail CM API: +133d 24/05/2026→03/10/2026 · parcial oficial",
     "tail": {
       "added": 133,
       "source": "coinmetrics_community_1d",
