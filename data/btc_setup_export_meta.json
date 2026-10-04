@@ -1,7 +1,7 @@
 {
   "generatedAt": "2026-10-04T05:41:39.024Z",
   "exporter": "playwright-v7-strict-hidden-controls-direct-csv-meta-fix",
-  "htmlPath": "setup_v204_tail_coinmetrics_price_mvrv.html",
+  "htmlPath": "index.html",
   "csvPath": "data/btc_setup_export.csv",
   "rows": 5730,
   "columns": [
