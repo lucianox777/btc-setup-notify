@@ -87,6 +87,7 @@ assert.ok(sessionSource.includes("req.method !== 'POST'"));
 assert.ok(sessionSource.includes("req.method === 'DELETE'"));
 
 const html = fs.readFileSync('index.html', 'utf8');
+assert.ok(html.includes('PATCH_V204_28_BINANCE_GRU1'));
 assert.ok(html.includes('PATCH_V204_27_BINANCE_PRIVATE_SESSION_OPEN_ORDERS'));
 assert.ok(html.includes('/api/binance/session'));
 assert.ok(html.includes('/api/binance/account'));
@@ -98,5 +99,10 @@ assert.ok(html.includes('Ordens abertas · BTCUSDT'));
 assert.equal(html.includes('BINANCE_DASHBOARD_TOKEN_SESSION_KEY_V20426'), false);
 assert.equal(html.includes('binanceDashboardToken'), false);
 assert.equal(html.includes('value="4163.41"'), false);
+
+const vercel = JSON.parse(fs.readFileSync('vercel.json', 'utf8'));
+assert.deepEqual(vercel.functions?.['api/binance/account.js']?.regions, ['gru1']);
+assert.deepEqual(vercel.functions?.['api/binance/session.js']?.regions, ['gru1']);
+assert.ok(accountSource.includes('process.env.VERCEL_REGION'));
 
 console.log('Binance private read-only smoke test: PASS');
