@@ -1,4 +1,16 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": null
+  "framework": null,
+  "functions": {
+    "api/binance/account.js": {
+      "regions": [
+        "gru1"
+      ]
+    },
+    "api/binance/session.js": {
+      "regions": [
+        "gru1"
+      ]
+    }
+  }
 }
