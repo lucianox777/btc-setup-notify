@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Setup v204.27 — MVRV ROC+EMA200+Halving Bear · v33.30 · tail CoinMetrics API PriceUSD+CapMVRVCur+volume_reported_spot_usd_1d</title>
+<title>Setup v204.28 — MVRV ROC+EMA200+Halving Bear · v33.30 · tail CoinMetrics API PriceUSD+CapMVRVCur+volume_reported_spot_usd_1d</title>
+<!-- PATCH_V204_28_BINANCE_GRU1 -->
 <!-- PATCH_V204_27_BINANCE_PRIVATE_SESSION_OPEN_ORDERS -->
 <!-- PATCH_V204_26_BINANCE_READ_ONLY_OPERATIONS -->
 <!-- PATCH_V204_25_VFL_REGIME_START_PRICE -->
@@ -10180,7 +10181,8 @@ function renderBinanceReadOnlyV20427(){
   const permText=perm.verified?(perm.readOnlySafe?'✅ chave API somente leitura':'⚠️ chave API possui permissões extras'): '⚠️ permissões da chave não verificadas';
   const basisText=reliable?'custo médio reconciliado com o saldo BTC real':'custo médio estimado: histórico BTCUSDT não reconciliou integralmente com o saldo real';
   box.className=(perm.readOnlySafe===false || !reliable)?'note warn':'note green';
-  status.textContent=`${permText} · ${basisText} · atualizado ${new Date(d.asOf||Date.now()).toLocaleString('pt-BR')}`;
+  const execRegion=String(d?.execution?.region||'').trim();
+  status.textContent=`${permText} · ${basisText}${execRegion?` · região ${execRegion}`:''} · atualizado ${new Date(d.asOf||Date.now()).toLocaleString('pt-BR')}`;
 
   const pnlText=Number.isFinite(pnlPct)?`${pnlPct>=0?'+':''}${fmt.p(pnlPct)} · ${Number.isFinite(pnl)?fmt.usd2(pnl):'—'}`:'—';
   summary.innerHTML=`
