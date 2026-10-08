@@ -83,7 +83,7 @@ assert.ok(authSource.includes('HttpOnly'));
 assert.ok(authSource.includes('Secure'));
 assert.ok(authSource.includes('SameSite=Strict'));
 assert.ok(authSource.includes('BINANCE_DASHBOARD_PASSWORD'));
-assert.ok(sessionSource.includes("req.method === 'POST'"));
+assert.ok(sessionSource.includes("req.method !== 'POST'"));
 assert.ok(sessionSource.includes("req.method === 'DELETE'"));
 
 const html = fs.readFileSync('index.html', 'utf8');
