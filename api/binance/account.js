@@ -350,6 +350,9 @@ async function handler(req, res) {
       source: 'binance-read-only',
       symbol: SYMBOL,
       asOf: new Date().toISOString(),
+      execution: {
+        region: String(process.env.VERCEL_REGION || process.env.VERCEL_REGION_ID || '').trim() || null
+      },
       accountUpdateTime: numberOr(account && account.updateTime, null),
       permissions: permissionSummary(restrictionsResult),
       balances: { BTC: btc, USDT: usdt },
