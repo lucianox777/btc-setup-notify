@@ -23,7 +23,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate canonical filename and v204.25 patch
+      - name: Validate canonical filename, version sync and required patches
         shell: bash
         run: |
           set -euo pipefail
@@ -36,7 +36,13 @@ jobs:
           grep -q 'PATCH_V204_25_VFL_REGIME_START_PRICE' index.html
           grep -Fq 'Início: ${fmt.usd2(vflPnl.start.price)}' index.html
           grep -q 'getCurrentVflRegimePnl' index.html
-          echo "index.html canônico: PASS"
+          grep -Fq '<title>Setup v204.28 —' index.html
+          grep -Fq '<h1>Setup v204.28</h1>' index.html
+          if grep -Fq 'v200.9.63' index.html; then
+            echo "::error::Versão visível antiga v200.9.63 ainda presente em index.html."
+            exit 1
+          fi
+          echo "index.html canônico e versão v204.28 sincronizados: PASS"
 
       - name: Publish index artifact
         uses: actions/upload-artifact@v4
