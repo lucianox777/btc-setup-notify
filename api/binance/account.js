@@ -310,11 +310,18 @@ async function handler(req, res) {
     const quantityMismatch = btc.total - basis.quantity;
     const mismatchAbs = Math.abs(quantityMismatch);
     const mismatchTolerance = Math.max(1e-8, btc.total * 0.005);
+    // Se o BTC reconstruído pelas execuções coincide com o saldo real da conta,
+    // o custo médio é utilizável mesmo quando a Binance devolveu a janela recente
+    // sem aceitar paginação por fromId. O saldo real é a reconciliação principal.
     const basisReliable =
       !basis.historyGap &&
       !tradePack.truncated &&
-      !tradePack.fallbackRecentOnly &&
+      basis.quantity > 0 &&
       mismatchAbs <= mismatchTolerance;
+    const basisAvailable =
+      Number.isFinite(basis.averagePrice) &&
+      basis.averagePrice > 0 &&
+      basis.quantity > 0;
 
     const averagePrice = basis.averagePrice;
     const unrealizedPnlUsd =
@@ -367,6 +374,8 @@ async function handler(req, res) {
         accountBtc: btc.total,
         quantityMismatch,
         reliable: basisReliable,
+        available: basisAvailable,
+        quality: basisReliable ? 'reconciled' : (basisAvailable ? 'estimated' : 'unavailable'),
         realizedPnlUsd: basis.realizedPnl,
         unrealizedPnlUsd,
         unrealizedPnlPct,
