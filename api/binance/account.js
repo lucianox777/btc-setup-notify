@@ -1,4 +1,9 @@
 const crypto = require('node:crypto');
+const {
+  dashboardPassword,
+  isSessionAuthorized,
+  json
+} = require('./_auth.js');
 
 const SYMBOL = 'BTCUSDT';
 const BASE_ASSET = 'BTC';
@@ -11,20 +16,6 @@ const TRADE_PAGE_SIZE = 1000;
 function numberOr(value, fallback = 0) {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
-}
-
-function safeEqual(a, b) {
-  const aa = Buffer.from(String(a || ''), 'utf8');
-  const bb = Buffer.from(String(b || ''), 'utf8');
-  return aa.length === bb.length && crypto.timingSafeEqual(aa, bb);
-}
-
-function dashboardAuthorized(req, expected) {
-  if (!expected) return false;
-  const raw = String(req.headers.authorization || '');
-  const prefix = 'Bearer ';
-  if (!raw.startsWith(prefix)) return false;
-  return safeEqual(raw.slice(prefix.length), expected);
 }
 
 function addOtherFee(map, asset, amount) {
@@ -43,7 +34,10 @@ function computeCostBasis(trades, baseAsset = BASE_ASSET, quoteAsset = QUOTE_ASS
   for (const trade of ordered) {
     const price = numberOr(trade.price, NaN);
     const rawQty = numberOr(trade.qty, NaN);
-    const quoteQty = numberOr(trade.quoteQty, Number.isFinite(price) && Number.isFinite(rawQty) ? price * rawQty : NaN);
+    const quoteQty = numberOr(
+      trade.quoteQty,
+      Number.isFinite(price) && Number.isFinite(rawQty) ? price * rawQty : NaN
+    );
     const commission = Math.max(0, numberOr(trade.commission, 0));
     const commissionAsset = String(trade.commissionAsset || '');
     if (!(price > 0) || !(rawQty > 0) || !(quoteQty >= 0)) continue;
@@ -51,11 +45,9 @@ function computeCostBasis(trades, baseAsset = BASE_ASSET, quoteAsset = QUOTE_ASS
     if (trade.isBuyer) {
       let acquiredQty = rawQty;
       let addedCost = quoteQty;
-
       if (commissionAsset === baseAsset) acquiredQty = Math.max(0, rawQty - commission);
       else if (commissionAsset === quoteAsset) addedCost += commission;
       else addOtherFee(otherFees, commissionAsset, commission);
-
       qty += acquiredQty;
       cost += addedCost;
       continue;
@@ -98,23 +90,17 @@ function computeCostBasis(trades, baseAsset = BASE_ASSET, quoteAsset = QUOTE_ASS
   };
 }
 
-function json(res, status, payload) {
-  res.statusCode = status;
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.setHeader('Cache-Control', 'private, no-store, max-age=0');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Vary', 'Authorization');
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.end(JSON.stringify(payload));
-}
-
 async function parseResponse(response) {
   const text = await response.text();
   let body;
   try { body = text ? JSON.parse(text) : {}; }
   catch (_) { body = { message: text || response.statusText }; }
   if (!response.ok) {
-    const err = new Error(body && body.msg ? body.msg : body && body.message ? body.message : `Binance HTTP ${response.status}`);
+    const err = new Error(
+      body && body.msg ? body.msg :
+      body && body.message ? body.message :
+      `Binance HTTP ${response.status}`
+    );
     err.status = response.status;
     err.code = body && body.code;
     err.binance = body;
@@ -130,9 +116,13 @@ function createBinanceClient({ apiKey, apiSecret, baseUrl, recvWindow }) {
   async function syncTime() {
     if (timeReady) return;
     try {
-      const response = await fetch(`${baseUrl}/api/v3/time`, { headers: { Accept: 'application/json' } });
+      const response = await fetch(`${baseUrl}/api/v3/time`, {
+        headers: { Accept: 'application/json' }
+      });
       const body = await parseResponse(response);
-      if (Number.isFinite(Number(body.serverTime))) offsetMs = Number(body.serverTime) - Date.now();
+      if (Number.isFinite(Number(body.serverTime))) {
+        offsetMs = Number(body.serverTime) - Date.now();
+      }
     } catch (_) {
       offsetMs = 0;
     }
@@ -142,7 +132,9 @@ function createBinanceClient({ apiKey, apiSecret, baseUrl, recvWindow }) {
   async function request(path, params = {}, signed = false) {
     const query = new URLSearchParams();
     for (const [key, value] of Object.entries(params)) {
-      if (value !== undefined && value !== null && value !== '') query.set(key, String(value));
+      if (value !== undefined && value !== null && value !== '') {
+        query.set(key, String(value));
+      }
     }
 
     if (signed) {
@@ -150,7 +142,10 @@ function createBinanceClient({ apiKey, apiSecret, baseUrl, recvWindow }) {
       query.set('recvWindow', String(recvWindow));
       query.set('timestamp', String(Date.now() + offsetMs));
       const unsigned = query.toString();
-      const signature = crypto.createHmac('sha256', apiSecret).update(unsigned).digest('hex');
+      const signature = crypto
+        .createHmac('sha256', apiSecret)
+        .update(unsigned)
+        .digest('hex');
       query.set('signature', signature);
     }
 
@@ -214,10 +209,37 @@ function findBalance(account, asset) {
   return { asset, free, locked, total: free + locked };
 }
 
+function mapOpenOrder(order) {
+  const origQty = Math.max(0, numberOr(order && order.origQty, 0));
+  const executedQty = Math.max(0, numberOr(order && order.executedQty, 0));
+  const remainingQty = Math.max(0, origQty - executedQty);
+  return {
+    orderId: order && order.orderId != null ? String(order.orderId) : null,
+    symbol: String((order && order.symbol) || SYMBOL),
+    side: String((order && order.side) || ''),
+    type: String((order && order.type) || ''),
+    status: String((order && order.status) || ''),
+    timeInForce: String((order && order.timeInForce) || ''),
+    price: numberOr(order && order.price, null),
+    stopPrice: numberOr(order && order.stopPrice, null),
+    origQty,
+    executedQty,
+    remainingQty,
+    cummulativeQuoteQty: numberOr(order && order.cummulativeQuoteQty, 0),
+    time: numberOr(order && order.time, null),
+    updateTime: numberOr(order && order.updateTime, null)
+  };
+}
+
 function permissionSummary(restrictions) {
   if (!restrictions || typeof restrictions !== 'object') {
-    return { verified: false, readOnlySafe: null, warning: 'Não foi possível verificar as permissões da chave pela API.' };
+    return {
+      verified: false,
+      readOnlySafe: null,
+      warning: 'Não foi possível verificar as permissões da chave pela API.'
+    };
   }
+
   const risky = [
     'enableSpotAndMarginTrading',
     'enableMargin',
@@ -225,6 +247,7 @@ function permissionSummary(restrictions) {
     'enableVanillaOptions',
     'enableWithdrawals'
   ].filter((key) => restrictions[key] === true);
+
   return {
     verified: true,
     readOnlySafe: restrictions.enableReading === true && risky.length === 0,
@@ -240,40 +263,43 @@ async function handler(req, res) {
     return json(res, 405, { ok: false, error: 'METHOD_NOT_ALLOWED' });
   }
 
+  const sessionSecret = dashboardPassword();
+  if (!sessionSecret || !isSessionAuthorized(req, sessionSecret)) {
+    return json(res, 401, {
+      ok: false,
+      error: 'UNAUTHORIZED',
+      message: 'Área Binance bloqueada. Informe a senha privada.'
+    });
+  }
+
   const apiKey = String(process.env.BINANCE_API_KEY || '').trim();
   const apiSecret = String(process.env.BINANCE_API_SECRET || '').trim();
-  const dashboardToken = String(process.env.BINANCE_DASHBOARD_TOKEN || '').trim();
 
   const missing = [];
   if (!apiKey) missing.push('BINANCE_API_KEY');
   if (!apiSecret) missing.push('BINANCE_API_SECRET');
-  if (!dashboardToken) missing.push('BINANCE_DASHBOARD_TOKEN');
   if (missing.length) {
     return json(res, 503, {
       ok: false,
       error: 'BINANCE_NOT_CONFIGURED',
       missing,
-      message: 'Integração Binance ainda não configurada no Vercel.'
-    });
-  }
-
-  if (!dashboardAuthorized(req, dashboardToken)) {
-    return json(res, 401, {
-      ok: false,
-      error: 'UNAUTHORIZED',
-      message: 'Chave de acesso do painel inválida.'
+      message: 'API Binance ainda não configurada no Vercel.'
     });
   }
 
   const baseUrl = String(process.env.BINANCE_BASE_URL || DEFAULT_BASE_URL).replace(/\/$/, '');
-  const recvWindow = Math.min(60000, Math.max(1000, numberOr(process.env.BINANCE_RECV_WINDOW, DEFAULT_RECV_WINDOW)));
+  const recvWindow = Math.min(
+    60000,
+    Math.max(1000, numberOr(process.env.BINANCE_RECV_WINDOW, DEFAULT_RECV_WINDOW))
+  );
   const client = createBinanceClient({ apiKey, apiSecret, baseUrl, recvWindow });
 
   try {
-    const [account, ticker, tradePack, restrictionsResult] = await Promise.all([
+    const [account, ticker, tradePack, openOrdersRaw, restrictionsResult] = await Promise.all([
       client.request('/api/v3/account', { omitZeroBalances: 'true' }, true),
       client.request('/api/v3/ticker/price', { symbol: SYMBOL }, false),
       fetchAllTrades(client),
+      client.request('/api/v3/openOrders', { symbol: SYMBOL }, true),
       client.request('/sapi/v1/account/apiRestrictions', {}, true).catch(() => null)
     ]);
 
@@ -284,18 +310,21 @@ async function handler(req, res) {
     const quantityMismatch = btc.total - basis.quantity;
     const mismatchAbs = Math.abs(quantityMismatch);
     const mismatchTolerance = Math.max(1e-8, btc.total * 0.005);
-    const basisReliable = !basis.historyGap
-      && !tradePack.truncated
-      && !tradePack.fallbackRecentOnly
-      && mismatchAbs <= mismatchTolerance;
+    const basisReliable =
+      !basis.historyGap &&
+      !tradePack.truncated &&
+      !tradePack.fallbackRecentOnly &&
+      mismatchAbs <= mismatchTolerance;
 
     const averagePrice = basis.averagePrice;
-    const unrealizedPnlUsd = Number.isFinite(price) && averagePrice != null
-      ? btc.total * (price - averagePrice)
-      : null;
-    const unrealizedPnlPct = Number.isFinite(price) && averagePrice > 0
-      ? price / averagePrice - 1
-      : null;
+    const unrealizedPnlUsd =
+      Number.isFinite(price) && averagePrice != null
+        ? btc.total * (price - averagePrice)
+        : null;
+    const unrealizedPnlPct =
+      Number.isFinite(price) && averagePrice > 0
+        ? price / averagePrice - 1
+        : null;
 
     const recentTrades = tradePack.trades
       .slice()
@@ -312,14 +341,22 @@ async function handler(req, res) {
         commissionAsset: String(t.commissionAsset || '')
       }));
 
+    const openOrders = (Array.isArray(openOrdersRaw) ? openOrdersRaw : [])
+      .map(mapOpenOrder)
+      .sort((a, b) => numberOr(b.time) - numberOr(a.time));
+
     return json(res, 200, {
       ok: true,
       source: 'binance-read-only',
       symbol: SYMBOL,
       asOf: new Date().toISOString(),
+      accountUpdateTime: numberOr(account && account.updateTime, null),
       permissions: permissionSummary(restrictionsResult),
       balances: { BTC: btc, USDT: usdt },
-      market: { symbol: SYMBOL, price: Number.isFinite(price) ? price : null },
+      market: {
+        symbol: SYMBOL,
+        price: Number.isFinite(price) ? price : null
+      },
       costBasis: {
         method: 'average-cost-BTCUSDT',
         averagePrice,
@@ -335,10 +372,12 @@ async function handler(req, res) {
         recentOnlyFallback: tradePack.fallbackRecentOnly,
         otherFeeAssets: basis.otherFees
       },
+      openOrders,
       trades: recentTrades,
       stats: {
         tradesLoaded: tradePack.trades.length,
         tradesReturned: recentTrades.length,
+        openOrders: openOrders.length,
         maxTradesScanned: MAX_TRADE_PAGES * TRADE_PAGE_SIZE
       }
     });
@@ -356,6 +395,6 @@ async function handler(req, res) {
 module.exports = handler;
 module.exports._test = {
   computeCostBasis,
-  safeEqual,
-  permissionSummary
+  permissionSummary,
+  mapOpenOrder
 };
