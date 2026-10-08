@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Setup v204.25 — MVRV ROC+EMA200+Halving Bear · v33.30 · tail CoinMetrics API PriceUSD+CapMVRVCur+volume_reported_spot_usd_1d</title>
+<title>Setup v204.26 — MVRV ROC+EMA200+Halving Bear · v33.30 · tail CoinMetrics API PriceUSD+CapMVRVCur+volume_reported_spot_usd_1d</title>
+<!-- PATCH_V204_26_BINANCE_READ_ONLY_OPERATIONS -->
 <!-- PATCH_V204_25_VFL_REGIME_START_PRICE -->
 <!-- PATCH_V204_11_PJ1H_LIVE_PRICE_AS_BTC_ENDPOINT -->
 <!-- PATCH_V204_10_PJ1H_LIVE_POINT_VISIVEL -->
@@ -956,7 +957,7 @@ header{display:block}
             <div class="menu-list">
               <div class="menu-item"><div class="menu-item-top"><div class="menu-item-ico">🖥️</div><div><b>Status do sistema</b><small>Fonte, cache, preços carregados, Fear & Greed, dados 1h e diagnósticos externos.</small></div></div><div class="mini" id="systemStatusMini">Aguardando carregamento.</div><div class="menu-item-actions"><button class="quick-btn" id="openSystemStatusBtn" type="button">Abrir status</button></div></div>
               <div class="menu-item"><div class="menu-item-top"><div class="menu-item-ico">⚙️</div><div><b>Parâmetros do sistema</b><small>Abre os controles editáveis somente quando necessário.</small></div></div><div class="mini">Foco no operacional principal.</div><div class="menu-item-actions inline-2"><button class="quick-btn" id="openControlsBtn" type="button">Abrir parâmetros</button><button class="quick-btn" id="toggleOptionalChartsBtn" type="button">Mostrar gráficos opcionais</button></div></div>
-              <div class="menu-item"><div class="menu-item-top"><div class="menu-item-ico">🧾</div><div><b>Operações e histórico</b><small>Compra/venda, posição, preço médio e registro local das operações aplicadas.</small></div></div><div class="mini" id="operationsMini">Abra para aplicar compra/venda ou consultar o histórico.</div><div class="menu-item-actions"><button class="quick-btn" id="openOperationsModalBtn" type="button">Abrir operações</button></div></div>
+              <div class="menu-item"><div class="menu-item-top"><div class="menu-item-ico">🧾</div><div><b>Operações e histórico</b><small>Binance somente leitura + posição, custo médio e simulação manual local.</small></div></div><div class="mini" id="operationsMini">Abra para consultar a Binance ou aplicar uma operação manual.</div><div class="menu-item-actions"><button class="quick-btn" id="openOperationsModalBtn" type="button">Abrir operações</button></div></div>
               <div class="menu-item"><div class="menu-item-top"><div class="menu-item-ico">📊</div><div><b>Backtests / execução / contexto</b><small>Resumo executivo, guardrails, execução validada e backtests visuais ficam agrupados aqui.</small></div></div><div class="mini" id="backtestMini">Abra para ver resumo executivo, regras validadas, execução e backtests visuais.</div><div class="menu-item-actions"><button class="quick-btn" id="openBacktestModalBtn" type="button">Abrir backtests / contexto</button></div></div>
             </div>
           </div>
@@ -1172,8 +1173,33 @@ header{display:block}
 
     <div id="operationsCardSlot" class="collapsible-source"></div>
     <div class="card collapsible-source" id="operationsCard">
-      <div class="section-title">Operações e histórico <small>compra/venda · posição · preço médio</small></div>
+      <div class="section-title">Operações e histórico <small>Binance leitura · compra/venda manual · posição · preço médio</small></div>
       <div class="section-body">
+        <div id="binanceReadOnlyBox" class="note green" style="margin-bottom:12px">
+          <b>Binance · somente leitura</b><br>
+          <span class="muted">Consulta saldo BTC/USDT, operações BTCUSDT e custo médio. A API Secret nunca é enviada ao navegador; o acesso passa pela função protegida no Vercel.</span>
+          <div class="controls-grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr);margin-top:10px">
+            <div>
+              <label>Chave de acesso do painel</label>
+              <input id="binanceDashboardToken" type="password" value="" autocomplete="off" placeholder="token de acesso configurado no Vercel" />
+              <div class="mini">Guardada apenas nesta sessão do navegador; não é a API Secret da Binance.</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:end">
+              <button id="binanceRefreshBtn" class="secondary" type="button">Atualizar Binance</button>
+              <button id="binanceForgetBtn" class="secondary" type="button">Esquecer acesso</button>
+            </div>
+          </div>
+          <div id="binanceStatus" class="miniNote" style="margin-top:10px">Binance ainda não consultada.</div>
+          <div id="binanceSummaryBox" class="confGrid" style="margin-top:10px">
+            <div class="confMini"><div class="k">BTC Binance</div><div class="v">—</div></div>
+            <div class="confMini"><div class="k">USDT livre</div><div class="v">—</div></div>
+            <div class="confMini"><div class="k">Custo médio BTCUSDT</div><div class="v">—</div></div>
+            <div class="confMini"><div class="k">PnL posição</div><div class="v">—</div></div>
+          </div>
+          <div id="binanceHistoryBox" style="margin-top:10px"><span class="muted">Operações Binance aparecerão aqui após a conexão.</span></div>
+        </div>
+
+        <div class="miniNote" style="margin-bottom:10px">Os campos abaixo continuam editáveis. Ao atualizar a Binance, BTC em posição, USDT disponível e o custo médio BTCUSDT são preenchidos automaticamente, sem executar nenhuma ordem.</div>
         <div class="controls-grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">
           <div><label>Usar preço atual</label><select id="useLive"><option value="yes" selected>Sim</option><option value="no">Não, usar fechamento CSV</option></select></div>
           <div><label>Atualização automática</label><select id="liveAuto"><option value="yes" selected>Sim, 1 min</option><option value="no">Não</option></select></div>
@@ -1198,8 +1224,8 @@ header{display:block}
           <button id="clearEntryBtn" class="secondary" type="button">Limpar operação</button>
         </div>
         <div id="entryCalcBox" class="note" style="margin-top:12px">Informe compra/venda, quantidade de BTC e preço para simular a posição e o preço médio.</div>
-        <div id="operationHistoryBox" class="note" style="margin-top:12px"><b>Histórico de operações</b><br>Nenhuma operação registrada localmente.</div>
-        <button id="clearOperationHistoryBtn" class="secondary" style="margin-top:12px">Limpar histórico de operações</button>
+        <div id="operationHistoryBox" class="note" style="margin-top:12px"><b>Histórico local (manual)</b><br>Nenhuma operação manual registrada neste navegador.</div>
+        <button id="clearOperationHistoryBtn" class="secondary" style="margin-top:12px">Limpar histórico local</button>
         <button id="recalcPosition" class="secondary" style="margin-top:12px">Recalcular posição</button>
         <div id="fixedLevelsBox" class="note green collapsible-source" style="margin-top:12px">Níveis operacionais fixos aparecem depois do CSV.</div>
         <div id="orderBox" class="note collapsible-source" style="margin-top:12px">—</div>
@@ -10036,7 +10062,149 @@ function openOperationsModal(){
   mount.appendChild(card);
   renderOperationHistory();
   renderNewEntryPreview();
+  hydrateBinanceAccessTokenV20426();
+  renderBinanceReadOnlyV20426();
+  if(readBinanceDashboardTokenV20426() && !binanceAccountStateV20426) loadBinanceReadOnlyV20426({silent:true});
   modal.classList.add('show');
+}
+
+const BINANCE_DASHBOARD_TOKEN_SESSION_KEY_V20426='btcBinanceDashboardTokenV20426';
+let binanceAccountStateV20426=null;
+
+function readBinanceDashboardTokenV20426(){
+  try{return String(sessionStorage.getItem(BINANCE_DASHBOARD_TOKEN_SESSION_KEY_V20426)||'').trim();}
+  catch(e){return '';}
+}
+function writeBinanceDashboardTokenV20426(value){
+  try{
+    const v=String(value||'').trim();
+    if(v) sessionStorage.setItem(BINANCE_DASHBOARD_TOKEN_SESSION_KEY_V20426,v);
+    else sessionStorage.removeItem(BINANCE_DASHBOARD_TOKEN_SESSION_KEY_V20426);
+  }catch(e){}
+}
+function hydrateBinanceAccessTokenV20426(){
+  const el=$('binanceDashboardToken');
+  if(el && !el.value) el.value=readBinanceDashboardTokenV20426();
+}
+function forgetBinanceReadOnlyV20426(){
+  writeBinanceDashboardTokenV20426('');
+  const el=$('binanceDashboardToken'); if(el) el.value='';
+  binanceAccountStateV20426=null;
+  renderBinanceReadOnlyV20426();
+  renderOperationsMiniV20426();
+}
+function renderOperationsMiniV20426(){
+  const mini=$('operationsMini');
+  if(!mini) return;
+  const localItems=getOperationHistory();
+  if(binanceAccountStateV20426 && binanceAccountStateV20426.ok){
+    const btc=Number(binanceAccountStateV20426?.balances?.BTC?.total);
+    const usdt=Number(binanceAccountStateV20426?.balances?.USDT?.free);
+    const avg=Number(binanceAccountStateV20426?.costBasis?.averagePrice);
+    mini.textContent=`Binance: ${Number.isFinite(btc)?fmt.n(btc,8):'—'} BTC · PM ${Number.isFinite(avg)&&avg>0?fmt.usd2(avg):'—'} · USDT livre ${Number.isFinite(usdt)?fmt.usd2(usdt):'—'}${localItems.length?` · local ${localItems.length}`:''}`;
+  }else{
+    mini.textContent=localItems.length?`${localItems.length} operação(ões) manual(is) registrada(s) localmente.`:'Binance não consultada · nenhum histórico manual.';
+  }
+}
+function renderBinanceReadOnlyV20426(){
+  const box=$('binanceReadOnlyBox'), status=$('binanceStatus'), summary=$('binanceSummaryBox'), history=$('binanceHistoryBox');
+  if(!box||!status||!summary||!history) return;
+  const d=binanceAccountStateV20426;
+  if(!d){
+    box.className='note green';
+    status.textContent='Binance ainda não consultada.';
+    summary.innerHTML='<div class="confMini"><div class="k">BTC Binance</div><div class="v">—</div></div><div class="confMini"><div class="k">USDT livre</div><div class="v">—</div></div><div class="confMini"><div class="k">Custo médio BTCUSDT</div><div class="v">—</div></div><div class="confMini"><div class="k">PnL posição</div><div class="v">—</div></div>';
+    history.innerHTML='<span class="muted">Operações Binance aparecerão aqui após a conexão.</span>';
+    return;
+  }
+  if(!d.ok){
+    box.className='note warn';
+    status.textContent=d.message||'Falha ao consultar a Binance.';
+    summary.innerHTML='<div class="confMini"><div class="k">Binance</div><div class="v">indisponível</div></div>';
+    history.innerHTML='<span class="muted">Nenhuma operação carregada.</span>';
+    return;
+  }
+
+  const btc=Number(d?.balances?.BTC?.total), btcFree=Number(d?.balances?.BTC?.free);
+  const usdt=Number(d?.balances?.USDT?.free), usdtLocked=Number(d?.balances?.USDT?.locked);
+  const avg=Number(d?.costBasis?.averagePrice), price=Number(d?.market?.price);
+  const pnl=Number(d?.costBasis?.unrealizedPnlUsd), pnlPct=Number(d?.costBasis?.unrealizedPnlPct);
+  const reliable=d?.costBasis?.reliable===true;
+  const perm=d?.permissions||{};
+  const permText=perm.verified?(perm.readOnlySafe?'✅ chave API somente leitura':'⚠️ chave API possui permissões extras'): '⚠️ permissões da chave não verificadas';
+  const basisText=reliable?'custo médio reconciliado com o saldo BTC':'custo médio estimado pelo histórico BTCUSDT; saldo/histórico não reconciliou 100%';
+  box.className=(perm.readOnlySafe===false || !reliable)?'note warn':'note green';
+  status.textContent=`${permText} · ${basisText} · atualizado ${new Date(d.asOf||Date.now()).toLocaleString('pt-BR')}`;
+
+  const pnlText=Number.isFinite(pnlPct)?`${pnlPct>=0?'+':''}${fmt.p(pnlPct)} · ${Number.isFinite(pnl)?fmt.usd2(pnl):'—'}`:'—';
+  summary.innerHTML=`
+    <div class="confMini"><div class="k">BTC Binance</div><div class="v">${Number.isFinite(btc)?fmt.n(btc,8):'—'} BTC<br><span class="muted">livre ${Number.isFinite(btcFree)?fmt.n(btcFree,8):'—'}</span></div></div>
+    <div class="confMini"><div class="k">USDT livre</div><div class="v">${Number.isFinite(usdt)?fmt.usd2(usdt):'—'}<br><span class="muted">bloqueado ${Number.isFinite(usdtLocked)?fmt.usd2(usdtLocked):'—'}</span></div></div>
+    <div class="confMini"><div class="k">Custo médio BTCUSDT</div><div class="v">${Number.isFinite(avg)&&avg>0?fmt.usd2(avg):'—'}<br><span class="muted">preço atual ${Number.isFinite(price)?fmt.usd2(price):'—'}</span></div></div>
+    <div class="confMini"><div class="k">PnL posição</div><div class="v">${pnlText}</div></div>`;
+
+  const trades=Array.isArray(d.trades)?d.trades:[];
+  if(!trades.length){
+    history.innerHTML='<b>Operações Binance</b><br><span class="muted">Nenhuma operação BTCUSDT retornada.</span>';
+  }else{
+    const rows=trades.slice(0,20).map(t=>{
+      const when=Number.isFinite(Number(t.time))?new Date(Number(t.time)).toLocaleString('pt-BR'):'—';
+      const side=t.side==='sell'?'Venda':'Compra';
+      const cls=t.side==='sell'?'red':'green';
+      const fee=Number(t.commission)>0?` · taxa ${fmt.n(Number(t.commission),8)} ${escapeHtml(t.commissionAsset||'')}`:'';
+      return `<tr><td>${escapeHtml(when)}</td><td><b class="${cls}">${side}</b></td><td>${fmt.n(Number(t.qty),8)} BTC</td><td>${fmt.usd2(Number(t.price))}</td><td>${fmt.usd2(Number(t.quoteQty))}</td><td>${fee?escapeHtml(fee.replace(/^ · /,'')):'—'}</td></tr>`;
+    }).join('');
+    history.innerHTML=`<b>Operações Binance · BTCUSDT</b><br><span class="muted">Últimas ${Math.min(20,trades.length)} de ${Number(d?.stats?.tradesLoaded)||trades.length} carregadas. Consulta somente leitura.</span><div class="table-wrap" style="margin-top:8px;max-height:300px;overflow:auto"><table><thead><tr><th>Data</th><th>Tipo</th><th>BTC</th><th>Preço</th><th>Valor</th><th>Taxa</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+}
+function applyBinanceSnapshotV20426(d){
+  if(!d||!d.ok) return;
+  const btc=Number(d?.balances?.BTC?.total);
+  const usdt=Number(d?.balances?.USDT?.free);
+  const avg=Number(d?.costBasis?.averagePrice);
+  if($('btcPos')&&Number.isFinite(btc)) $('btcPos').value=btc.toFixed(8);
+  if($('capital')&&Number.isFinite(usdt)) $('capital').value=usdt.toFixed(2);
+  if($('avgPrice')&&Number.isFinite(avg)&&avg>0) $('avgPrice').value=avg.toFixed(2);
+  if($('btcExposurePct')) $('btcExposurePct').value='';
+  try{saveSettings();}catch(e){}
+  try{renderPnlCardOnly();}catch(e){}
+  try{renderBtcExposureField();}catch(e){}
+  try{renderNewEntryPreview();}catch(e){}
+}
+async function loadBinanceReadOnlyV20426(options={}){
+  const silent=options&&options.silent===true;
+  const input=$('binanceDashboardToken');
+  const token=String(input?.value||readBinanceDashboardTokenV20426()||'').trim();
+  const btn=$('binanceRefreshBtn');
+  if(!token){
+    binanceAccountStateV20426={ok:false,message:'Informe a chave de acesso do painel. Ela é diferente da API Secret da Binance.'};
+    renderBinanceReadOnlyV20426(); renderOperationsMiniV20426(); return;
+  }
+  writeBinanceDashboardTokenV20426(token);
+  if(btn) btn.disabled=true;
+  const status=$('binanceStatus');
+  if(status&&!silent) status.textContent='Consultando Binance em modo somente leitura…';
+  try{
+    const response=await fetch('/api/binance/account',{
+      method:'GET',
+      headers:{'Accept':'application/json','Authorization':`Bearer ${token}`},
+      cache:'no-store'
+    });
+    let payload={};
+    try{payload=await response.json();}catch(e){payload={ok:false,message:`Resposta inválida do servidor (${response.status}).`};}
+    if(!response.ok || !payload.ok){
+      binanceAccountStateV20426={ok:false,...payload,message:payload.message||`Falha Binance HTTP ${response.status}`};
+    }else{
+      binanceAccountStateV20426=payload;
+      applyBinanceSnapshotV20426(payload);
+    }
+  }catch(e){
+    binanceAccountStateV20426={ok:false,message:`Falha ao consultar Binance: ${e?.message||e}`};
+  }finally{
+    if(btn) btn.disabled=false;
+    renderBinanceReadOnlyV20426();
+    renderOperationsMiniV20426();
+  }
 }
 function getOperationHistory(){
   try{return JSON.parse(localStorage.getItem('btcPanelOperationHistoryV136')||'[]')}
@@ -10069,11 +10237,11 @@ function renderOperationHistory(){
   const mini=$('operationsMini');
   if(!box && !mini) return;
   const items=getOperationHistory();
-  if(mini) mini.textContent=items.length?`${items.length} operação(ões) registradas localmente.`:'Nenhuma operação registrada.';
+  if(mini) renderOperationsMiniV20426();
   if(!box) return;
   if(!items.length){
     box.className='note';
-    box.innerHTML='<b>Histórico de operações</b><br>Nenhuma operação registrada localmente.';
+    box.innerHTML='<b>Histórico local (manual)</b><br>Nenhuma operação manual registrada neste navegador.';
     return;
   }
   const rows=items.slice(0,15).map(it=>{
@@ -10084,7 +10252,7 @@ function renderOperationHistory(){
     return `<tr><td>${escapeHtml(when)}</td><td><b>${op}</b></td><td>${fmt.n(it.qty,8)} BTC</td><td>${fmt.usd2(it.price)}</td><td>${fmt.usd2(it.gross)}</td><td>${fmt.n(it.newBtc,8)} BTC</td><td>${Number.isFinite(it.newAvg)&&it.newAvg>0?fmt.usd2(it.newAvg):'zerado'}${pnl}</td></tr>`;
   }).join('');
   box.className='note';
-  box.innerHTML=`<b>Histórico de operações</b><br><span class="muted">Registro local do navegador; não é enviado a lugar nenhum.</span>
+  box.innerHTML=`<b>Histórico local (manual)</b><br><span class="muted">Registro local do navegador; não é enviado à Binance nem executa ordens.</span>
     <div class="table-wrap" style="margin-top:8px;max-height:260px;overflow:auto"><table><thead><tr><th>Data</th><th>Tipo</th><th>BTC</th><th>Preço</th><th>Valor</th><th>Nova posição</th><th>PM / PnL</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
@@ -10376,6 +10544,8 @@ function wire(){
   if($('addEntryBtn')) $('addEntryBtn').addEventListener('click',applyNewEntry);
   if($('clearEntryBtn')) $('clearEntryBtn').addEventListener('click',clearNewEntry);
   if($('clearOperationHistoryBtn')) $('clearOperationHistoryBtn').addEventListener('click',clearOperationHistory);
+  if($('binanceRefreshBtn')) $('binanceRefreshBtn').addEventListener('click',()=>loadBinanceReadOnlyV20426());
+  if($('binanceForgetBtn')) $('binanceForgetBtn').addEventListener('click',forgetBinanceReadOnlyV20426);
 
   $('exportCsv').addEventListener('click',exportCsv);
   $('exportPng').addEventListener('click',exportPng);
@@ -10430,7 +10600,7 @@ function wire(){
   document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeInsightModal(); });
   window.addEventListener('resize',scheduleDraw);
 }
-function init(){sanitizeStoredCsvUrlsV167();loadSettings();ensureSafeCsvUrl();buildRangePills();syncPj1hMirrors();wire();startHourlyRefreshV2049();toggleControlsCard(false);renderOperationHistory();updateFormula();startLive();if($('autoLoad').value==='yes')loadCSV();if($('sthAuto').value==='yes')loadSthData();if($('lthAuto')&&$('lthAuto').value==='yes')loadLthData();loadLivePrice();loadFearGreed();setTimeout(loadLeverageLiquidityData,2500);setTimeout(loadEma4hContext,3200);setTimeout(()=>{if($('intradayAuto')&&$('intradayAuto').value==='yes')loadIntradayData();},1800);setTimeout(()=>{if($('pj1hAuto')&&$('pj1hAuto').value==='yes')loadHourFairData();},2200);}
+function init(){sanitizeStoredCsvUrlsV167();loadSettings();ensureSafeCsvUrl();buildRangePills();syncPj1hMirrors();wire();startHourlyRefreshV2049();toggleControlsCard(false);hydrateBinanceAccessTokenV20426();renderBinanceReadOnlyV20426();renderOperationHistory();updateFormula();startLive();if($('autoLoad').value==='yes')loadCSV();if($('sthAuto').value==='yes')loadSthData();if($('lthAuto')&&$('lthAuto').value==='yes')loadLthData();loadLivePrice();loadFearGreed();setTimeout(loadLeverageLiquidityData,2500);setTimeout(loadEma4hContext,3200);setTimeout(()=>{if($('intradayAuto')&&$('intradayAuto').value==='yes')loadIntradayData();},1800);setTimeout(()=>{if($('pj1hAuto')&&$('pj1hAuto').value==='yes')loadHourFairData();},2200);}
 init();
 </script>
 
