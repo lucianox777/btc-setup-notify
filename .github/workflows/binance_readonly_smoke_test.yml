@@ -35,6 +35,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          node --check api/binance/_auth.js
+          node --check api/binance/session.js
           node --check api/binance/account.js
           node --check scripts/binance_readonly_smoke_test.cjs
 
