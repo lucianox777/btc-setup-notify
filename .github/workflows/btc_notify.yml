@@ -15,6 +15,7 @@ jobs:
     timeout-minutes: 5      # execução leve — sem Playwright
     permissions:
       contents: write       # para commitar o estado
+      id-token: write       # OIDC efêmero para consultar contexto mínimo privado no Vercel
 
     steps:
       - name: Checkout
@@ -37,6 +38,7 @@ jobs:
           EXPORT_CSV_PATH:  data/btc_setup_export.csv
           EXPORT_META_PATH: data/btc_setup_export_meta.json
           ESTADO_PATH:      data/estado_anterior.json
+          BTC_PRIVATE_CONTEXT_URL: https://btc-setup-notify.vercel.app/api/binance/notify-context
         # Base canônica preservada/testada: python btc_setup_notify.py
         run: python btc_setup_notify_entry.py
 
