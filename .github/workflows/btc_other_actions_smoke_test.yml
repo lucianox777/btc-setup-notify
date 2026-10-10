@@ -56,7 +56,9 @@ jobs:
           test -f "btc_setup_notify.py"
           test -s "$EXPORT_CSV_PATH"
           python -m py_compile btc_setup_notify.py
-          grep -q "python btc_setup_notify.py" .github/workflows/btc_notify.yml
+          grep -q "python btc_setup_notify_entry.py" .github/workflows/btc_notify.yml
+          grep -q "id-token: write" .github/workflows/btc_notify.yml
+          grep -q "notify-context" .github/workflows/btc_notify.yml
           grep -q "TELEGRAM_TOKEN" .github/workflows/btc_notify.yml
           grep -q "TELEGRAM_CHAT_ID" .github/workflows/btc_notify.yml
 
@@ -71,7 +73,7 @@ jobs:
 
           m = importlib.import_module("btc_setup_notify")
 
-          assert "v204.29" in m.RODAPE, m.RODAPE
+          assert "v204.31" in m.RODAPE, m.RODAPE
           assert abs(m._parse_pct_value("50%") - 0.50) < 1e-9
           assert abs(m._parse_pct_value("0,50") - 0.50) < 1e-9
 
@@ -114,7 +116,7 @@ jobs:
               "Linha VFL diária/regime",
               "Leitura diária / recomposição",
               "Filtro/cap de execução limita novo aumento; não é ordem de venda da posição existente.",
-              "Como a posição atual é 0% e o cap liberado é 50%, a ação prática é comprar até 50%.",
+              "Posição real ~0%: abaixo do cap 50%; pode recompor até esse limite.",
               "─ Comprar 25% ─",
           ]
           missing = [x for x in required if x not in msg]
@@ -126,7 +128,48 @@ jobs:
               raise AssertionError("Linha dourada diária aparece mais de uma vez.")
           if msg.count("Linha azul diária 0,93 / reversão") != 1:
               raise AssertionError("Linha azul diária aparece mais de uma vez.")
-          print({"notifySmoke": "PASS", "footer": m.RODAPE})
+          ctx = m.carregar_contexto_privado()
+          if ctx.get("available"):
+              raise AssertionError("Smoke sem OIDC deveria usar fallback genérico")
+
+          synthetic = pd.Series({
+              "signal": 1,
+              "FR": 1.00,
+              "ret3": 0.04,
+              "ret7": 0.05,
+              "ret14": 0.06,
+              "vol14": 0.30,
+              "EMA50": 85000.0,
+              "EMA200": 80000.0,
+              "capRealPct7": 0.01,
+              "rsi14": 72.0,
+              "mvrvROC7": 0.01,
+              "mvrvROC30": 0.02,
+              "ema200Dist": 0.10,
+              "_combined_signal": "COMPRAR",
+              "_target_exposure": 1.0,
+              "_macro_exposure": 1.0,
+              "_execution_cap": 0.5,
+              "_current_exposure": 0.0,
+              "_execution_note": "",
+          })
+          generic = m.calcular_decisao(synthetic, {"available": False})
+          assert generic["position_source"] == "generic", generic
+          assert generic["op"] == "MACRO 100% · CAP 50%", generic
+          assert not np.isfinite(generic["current_exposure"]), generic
+
+          private = m.calcular_decisao(synthetic, {
+              "available": True,
+              "current_exposure": 0.47,
+              "open_buy_orders": 1,
+              "open_sell_orders": 0,
+          })
+          assert private["position_source"] == "binance_private", private
+          assert abs(private["current_exposure"] - 0.47) < 1e-9, private
+          assert private["open_buy_orders"] == 1 and private["open_sell_orders"] == 0, private
+          assert private["op"] == "AUMENTAR ATÉ 50%", private
+
+          print({"notifySmoke": "PASS", "footer": m.RODAPE, "generic": generic["op"], "private": private["op"]})
           PY
 
   intraday-smoke:
