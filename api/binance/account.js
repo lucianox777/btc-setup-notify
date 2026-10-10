@@ -410,3 +410,9 @@ module.exports._test = {
   permissionSummary,
   mapOpenOrder
 };
+module.exports._shared = {
+  numberOr,
+  createBinanceClient,
+  findBalance,
+  mapOpenOrder
+};
