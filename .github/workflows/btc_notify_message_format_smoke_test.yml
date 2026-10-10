@@ -40,7 +40,7 @@ jobs:
           python -m py_compile btc_setup_notify.py btc_setup_notify_entry.py
           grep -q "python btc_setup_notify_entry.py" .github/workflows/btc_notify.yml
 
-      - name: Validar formato Telegram v204.30
+      - name: Validar formato Telegram v204.31
         shell: bash
         run: |
           set -euo pipefail
@@ -73,6 +73,9 @@ jobs:
               "fr": 1.0274,
               "current_exposure": 0.50,
               "execution_cap": 0.50,
+              "position_source": "binance_private",
+              "open_buy_orders": 1,
+              "open_sell_orders": 0,
           }
           cap = {
               "ativa": False,
@@ -96,13 +99,13 @@ jobs:
           )
 
           obrigatorios = [
-              "✅ *Cards (2)* RSI14>65+vol14, RSI14>70+vol14\n🟢 *VFL*\n🚫 *Bloqueios:* nenhum bloqueio operacional confirmado",
+              "✅ *Cards (2)* RSI14>65+vol14, RSI14>70+vol14\n🟢 *VFL*\n🔐 *Carteira:* exposição ~50% · ordens abertas C 1 / V 0\n🚫 *Bloqueios:* nenhum bloqueio operacional confirmado",
               "💰 *Fechamento:* $81,243  |  📊 *FR:* 1.0274",
               "🟢 *1,05 / redução:*",
               "🟡 *0,96 / recompra:*",
               "🔵 *0,93 / reversão:*",
               "🔁 *VFL regime:* US$ 69,941",
-              "_BTC Setup v204.30 · GitHub Actions_",
+              "_BTC Setup v204.31 · GitHub Actions_",
           ]
           faltando = [x for x in obrigatorios if x not in msg]
           if faltando:
@@ -126,9 +129,9 @@ jobs:
               {"date": "2026-09-03"},
               ressalvas,
           )
-          if "✅ *Cards (2)* RSI14>65+vol14, RSI14>70+vol14\n🟢 *VFL*\n🚫 *Bloqueios:*" not in heartbeat:
-              raise AssertionError("Cards/VFL não foram restaurados no heartbeat")
+          if "✅ *Cards (2)* RSI14>65+vol14, RSI14>70+vol14\n🟢 *VFL*\n🔐 *Carteira:* exposição ~50% · ordens abertas C 1 / V 0\n🚫 *Bloqueios:*" not in heartbeat:
+              raise AssertionError("Cards/VFL/carteira não foram restaurados no heartbeat")
 
-          print("BTC notify message format v204.30: PASS")
+          print("BTC notify message format v204.31: PASS")
           print(msg)
           PY
