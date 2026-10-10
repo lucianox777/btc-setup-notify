@@ -112,7 +112,9 @@ assert.ok(notifySource.includes('verifyGithubActionsToken'));
 assert.ok(notifySource.includes('currentExposurePct'));
 assert.ok(notifySource.includes('openBuyOrders'));
 assert.ok(notifySource.includes('openSellOrders'));
-assert.equal(notifySource.includes('BINANCE_API_SECRET') && notifySource.includes('return json(res, 200, {') && notifySource.includes('apiSecret,'), false);
+assert.ok(notifySource.includes("source: 'binance-private-notify-context'"));
+assert.equal(notifySource.includes('averagePrice'), false);
+assert.equal(notifySource.includes('realizedPnl'), false);
 
 const html = fs.readFileSync('index.html', 'utf8');
 assert.ok(html.includes('PATCH_V204_29_BINANCE_PNL_COST_BASIS'));
