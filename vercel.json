@@ -11,6 +11,11 @@
       "regions": [
         "gru1"
       ]
+    },
+    "api/binance/notify-context.js": {
+      "regions": [
+        "gru1"
+      ]
     }
   }
 }
