@@ -1,4 +1,4 @@
-"""Entrada do BTC Setup Notify com formatação Telegram v204.30.
+"""Entrada do BTC Setup Notify com formatação Telegram v204.31.
 
 Mantém toda a lógica de cálculo/estado do btc_setup_notify.py e altera apenas a
 apresentação da mensagem:
@@ -7,7 +7,9 @@ apresentação da mensagem:
 - remove o segundo VFL do bloco de mercado;
 - junta Fechamento e FR na mesma linha;
 - remove o rótulo repetido de data do fechamento;
-- compacta os rótulos das linhas 1,05 / 0,96 / 0,93 / VFL regime.
+- compacta os rótulos das linhas 1,05 / 0,96 / 0,93 / VFL regime;
+- mostra contexto mínimo da carteira quando o backend privado estiver disponível;
+- usa mensagem genérica por alvo/cap quando a carteira não puder ser consultada.
 """
 
 import pandas as pd
@@ -15,7 +17,7 @@ import pandas as pd
 import btc_setup_notify as base
 
 
-RODAPE = "_BTC Setup v204.30 · GitHub Actions_"
+RODAPE = "_BTC Setup v204.31 · GitHub Actions_"
 _ORIGINAL_CORPO = base._corpo
 
 
@@ -31,6 +33,25 @@ def _linha_cards(dec: dict) -> str:
 
 def _linha_vfl(dec: dict) -> str:
     return ("🟢" if dec.get("vfl") == 1 else "🔴") + " *VFL*\n"
+
+
+def _linha_carteira(dec: dict) -> str:
+    if dec.get("position_source") == "binance_private":
+        curr = dec.get("current_exposure")
+        buy = int(dec.get("open_buy_orders", 0) or 0)
+        sell = int(dec.get("open_sell_orders", 0) or 0)
+        try:
+            pct = float(curr) * 100
+            return f"🔐 *Carteira:* exposição ~{pct:.0f}% · ordens abertas C {buy} / V {sell}\n"
+        except Exception:
+            pass
+    if dec.get("position_source") == "env":
+        try:
+            pct = float(dec.get("current_exposure")) * 100
+            return f"🔐 *Carteira:* exposição informada ~{pct:.0f}%\n"
+        except Exception:
+            pass
+    return "🔐 *Carteira:* não consultada · leitura genérica por alvo/cap\n"
 
 
 def _corpo(last, dec, cap, nat):
@@ -82,7 +103,8 @@ def montar_mudanca(last, dec, cap, nat, mudancas, ressalvas=None):
     msg += f"\n*{dec['op']}*\n{dec['mot']}\n\n"
     msg += _linha_cards(dec)
     msg += _linha_vfl(dec)
-    # Sem linha em branco entre Cards, VFL e Bloqueios/Ressalvas.
+    msg += _linha_carteira(dec)
+    # Sem linha em branco entre Cards, VFL, carteira e Bloqueios/Ressalvas.
     msg = base._append_decision_context(msg, dec, ressalvas)
     msg += "\n" + _corpo(last, dec, cap, nat)
     msg += "\n" + RODAPE
@@ -98,6 +120,7 @@ def montar_heartbeat(last, dec, cap, nat, estado_ant, ressalvas=None):
     msg += f"\n*{dec['op']}*  _(desde {desde})_\n{dec['mot']}\n\n"
     msg += _linha_cards(dec)
     msg += _linha_vfl(dec)
+    msg += _linha_carteira(dec)
     msg = base._append_decision_context(msg, dec, ressalvas)
     msg += "\n" + _corpo(last, dec, cap, nat)
     msg += "\n" + RODAPE
