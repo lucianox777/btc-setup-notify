@@ -2,12 +2,12 @@
 BTC Setup — Notificação via Telegram
 GitHub Actions · roda de hora em hora (~30s/execução)
 
-Arquitetura limpa (v204.29):
+Arquitetura limpa (v204.31):
   - Fontes: CoinMetrics GitHub CSV (histórico) + CSV exportado pelo setup (tail)
   - SEM chamada direta à CoinMetrics API (evita 403 no GitHub Actions)
   - Heartbeat: envia quando o CSV exportado atualiza para nova data fechada
   - Linha parcial (hoje UTC): bloqueada — só usa fechamentos confirmados
-  - Rodapé: v204.29
+  - Rodapé: v204.31
   - v204.1: Halving dist não entra em bloqueios; virada verde aquecida entra só em ressalvas se detectada
   - v204.2: ressalvas de ciclo/aquecimento também aparecem durante o regime verde, não só na virada
   - v204.3: separa macro COMPRAR/100% de execução cap 50%; se posição atual já está em 50%, mensagem final vira MANTER 50%, não AUMENTAR ATÉ 50%
@@ -18,10 +18,11 @@ Arquitetura limpa (v204.29):
   - v204.26: rótulo da linha azul ajustado para "0,93 / reversão"; bloco 25% preservado
   - v204.27: garante linhas FR na mensagem diária e remove repetição de valores no bloco Recomposição
   - v204.28: restaura mensagem diária completa estilo v204.24, com bloco de recomposição detalhado, preservando rótulo azul “0,93 / reversão” e corrigindo inconsistência posição 0% vs MANTER 50%
-  - v204.29: mantém as linhas FR no bloco de mercado e transforma Recomposição em leitura operacional, sem repetir os mesmos valores de preço/linhas
+  - v204.31: mantém as linhas FR no bloco de mercado, usa contexto privado mínimo da Binance via GitHub OIDC quando disponível e cai para mensagem genérica por alvo/cap quando a carteira não puder ser consultada
 
 Secrets GitHub:
   TELEGRAM_TOKEN, TELEGRAM_CHAT_ID
+  A integração privada Binance NÃO replica BINANCE_API_SECRET no GitHub; usa OIDC do GitHub Actions para autenticar no Vercel.
 
 Arquivos no repositório:
   btc_setup_notify.py
@@ -44,6 +45,12 @@ ESTADO_PATH      = os.environ.get("ESTADO_PATH",      "data/estado_anterior.json
 # Opcional: informe a exposição atual quando o CSV exportado não trouxer esse campo.
 # Aceita 50, 50%, 0.50 ou 0,50.
 CURRENT_EXPOSURE_PCT_ENV = os.environ.get("BTC_EXPOSURE_PCT", os.environ.get("CURRENT_EXPOSURE_PCT", ""))
+
+PRIVATE_CONTEXT_URL = os.environ.get(
+    "BTC_PRIVATE_CONTEXT_URL",
+    "https://btc-setup-notify.vercel.app/api/binance/notify-context",
+)
+GITHUB_OIDC_AUDIENCE = "btc-setup-notify-vercel"
 
 CM_CSV_URL = "https://raw.githubusercontent.com/coinmetrics/data/refs/heads/master/csv/btc.csv"
 
@@ -91,6 +98,77 @@ def _text_first(row: pd.Series, names, default="") -> str:
         except Exception:
             pass
     return default
+
+def _github_oidc_token(audience: str = GITHUB_OIDC_AUDIENCE, timeout: int = 10) -> str:
+    """Obtém token OIDC efêmero do GitHub Actions; não usa segredo Binance no GitHub."""
+    request_url = os.environ.get("ACTIONS_ID_TOKEN_REQUEST_URL", "").strip()
+    request_token = os.environ.get("ACTIONS_ID_TOKEN_REQUEST_TOKEN", "").strip()
+    if not request_url or not request_token:
+        raise RuntimeError("OIDC do GitHub Actions indisponível")
+    sep = "&" if "?" in request_url else "?"
+    url = request_url + sep + "audience=" + audience
+    req = urllib.request.Request(
+        url,
+        headers={
+            "Authorization": f"Bearer {request_token}",
+            "Accept": "application/json",
+            "User-Agent": "btc-setup-notify/204.31",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        body = json.loads(r.read().decode("utf-8"))
+    token = str(body.get("value", "")).strip()
+    if not token:
+        raise RuntimeError("GitHub OIDC não retornou token")
+    return token
+
+
+def carregar_contexto_privado(timeout: int = 12) -> dict:
+    """
+    Busca somente o contexto mínimo necessário à mensagem:
+    exposição BTC/USDT e contagem de ordens abertas por lado.
+    Falha silenciosamente para modo genérico — nunca bloqueia o Telegram.
+    """
+    out = {
+        "available": False,
+        "source": "generic",
+        "current_exposure": np.nan,
+        "open_buy_orders": 0,
+        "open_sell_orders": 0,
+        "reason": "",
+    }
+    try:
+        oidc = _github_oidc_token()
+        req = urllib.request.Request(
+            PRIVATE_CONTEXT_URL,
+            headers={
+                "Authorization": f"Bearer {oidc}",
+                "Accept": "application/json",
+                "User-Agent": "btc-setup-notify/204.31",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            payload = json.loads(r.read().decode("utf-8"))
+
+        exposure = _parse_pct_value(payload.get("currentExposurePct"), np.nan)
+        if not payload.get("ok") or not np.isfinite(exposure):
+            raise RuntimeError("contexto privado sem exposição válida")
+
+        out.update({
+            "available": True,
+            "source": "binance_private",
+            "current_exposure": exposure,
+            "open_buy_orders": max(0, int(payload.get("openBuyOrders", 0) or 0)),
+            "open_sell_orders": max(0, int(payload.get("openSellOrders", 0) or 0)),
+            "as_of": str(payload.get("asOf", "") or ""),
+            "region": str(payload.get("executionRegion", "") or ""),
+        })
+        return out
+    except Exception as e:
+        out["reason"] = str(e)
+        print(f"  Contexto privado Binance indisponível; usando mensagem genérica: {e}")
+        return out
+
 
 # ─── DOWNLOAD COM RETRY ─────────────────────────────────────────────────────
 def baixar(url: str, timeout=30, retries=3, backoff=5) -> bytes:
@@ -394,7 +472,7 @@ def calcular(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 # ─── DECISÃO OPERACIONAL ────────────────────────────────────────────────────
-def calcular_decisao(last: pd.Series) -> dict:
+def calcular_decisao(last: pd.Series, position_context=None) -> dict:
     vfl  = int(last["signal"])
     fr   = float(last["FR"])
     zona = 0.96 <= fr <= 1.05
@@ -443,10 +521,27 @@ def calcular_decisao(last: pd.Series) -> dict:
     _expo     = last.get("_target_exposure")
     _macro_exp = _parse_pct_value(last.get("_macro_exposure", np.nan), np.nan)
     _exec_cap  = _parse_pct_value(last.get("_execution_cap", np.nan), np.nan)
-    _curr_exp  = _parse_pct_value(last.get("_current_exposure", np.nan), np.nan)
-    _env_exp   = _parse_pct_value(CURRENT_EXPOSURE_PCT_ENV, np.nan)
-    if np.isfinite(_env_exp):
-        _curr_exp = _env_exp
+
+    # A exposição exportada pelo HTML não é autoridade: pode ser default/local e ficar
+    # desatualizada. Para personalizar o Telegram, preferimos o contexto privado
+    # efêmero da Binance; como fallback explícito, aceita BTC_EXPOSURE_PCT.
+    _curr_exp = np.nan
+    _position_source = "generic"
+    _open_buy_orders = 0
+    _open_sell_orders = 0
+    if position_context and position_context.get("available"):
+        _ctx_exp = _parse_pct_value(position_context.get("current_exposure"), np.nan)
+        if np.isfinite(_ctx_exp):
+            _curr_exp = _ctx_exp
+            _position_source = "binance_private"
+            _open_buy_orders = max(0, int(position_context.get("open_buy_orders", 0) or 0))
+            _open_sell_orders = max(0, int(position_context.get("open_sell_orders", 0) or 0))
+    if not np.isfinite(_curr_exp):
+        _env_exp = _parse_pct_value(CURRENT_EXPOSURE_PCT_ENV, np.nan)
+        if np.isfinite(_env_exp):
+            _curr_exp = _env_exp
+            _position_source = "env"
+
     _execution_note = str(last.get("_execution_note", "") or "").strip()
 
     if _combined:
@@ -484,12 +579,7 @@ def calcular_decisao(last: pd.Series) -> dict:
 
     execution_note = ""
     if vfl == 1 and macro_exposure >= 0.99 and np.isfinite(execution_cap) and execution_cap <= 0.51:
-        # v204.4 / v32.9:
-        # O cap 50 validado como filtro operacional NÃO virou alvo de venda.
-        # Ele limita apenas novos aumentos/recomposições. Venda/redução só pela macro:
-        #   - VFL vermelho -> 0%
-        #   - VFL verde + FR >= 1,05 -> 50%
-        # Se a posição atual já estiver acima de 50% enquanto a macro segue 100%, manter.
+        # v32.9: cap 50 limita NOVO aumento/recomposição; não é alvo de venda.
         if np.isfinite(_curr_exp):
             if _curr_exp < execution_cap - 0.005:
                 op = "AUMENTAR ATÉ 50%"
@@ -515,14 +605,28 @@ def calcular_decisao(last: pd.Series) -> dict:
                     "v32.9 rejeitou tratar o cap 50 como alvo de venda. O filtro bloqueia NOVO aumento/recomposição, "
                     "mas não manda vender posição existente acima de 50%; vender só se a macro pedir 50% ou 0%."
                 )
-        elif "AUMENTAR" in op_upper or "COMPRAR" in op_upper:
-            op = "AUMENTAR ATÉ 50%"
-            emoji = "✅"
-            mot = "macro: COMPRAR/100%; execução: limite de aumento 50%"
+        else:
+            op = "MACRO 100% · CAP 50%"
+            emoji = "🧭"
+            mot = "alvo macro 100%; nova exposição limitada a 50%; posição privada indisponível"
             execution_note = (
-                "Sem exposição atual informada no CSV/env; se a carteira já estiver em 50%, a ação prática é MANTER 50%; "
-                "se estiver acima de 50%, NÃO vender por este filtro."
+                "Leitura genérica por alvo/cap: abaixo de 50% pode recompor até 50%; em 50% manter; "
+                "acima de 50% não vender por este filtro."
             )
+    elif not np.isfinite(_curr_exp) and macro_op == "MANTER 50%":
+        op = "ALVO MACRO 50%"
+        emoji = "🧭"
+        mot = "VFL/FR define alvo macro 50%; posição privada indisponível"
+        execution_note = (
+            "Leitura genérica: compare sua posição real com o alvo de 50%; a mensagem não presume saldo da carteira."
+        )
+    elif not np.isfinite(_curr_exp) and macro_op == "COMPRAR" and macro_exposure >= 0.99:
+        op = "ALVO MACRO 100%"
+        emoji = "🧭"
+        mot = "VFL/FR permite alvo macro 100%; posição privada indisponível"
+        execution_note = (
+            "Leitura genérica: a mensagem informa alvo/cap sem presumir a posição real da carteira."
+        )
 
     if not execution_note and _execution_note:
         execution_note = _execution_note
@@ -531,6 +635,9 @@ def calcular_decisao(last: pd.Series) -> dict:
             "cards": cards, "bloqueios": bloqueios, "vfl": vfl, "fr": fr,
             "macro_op": macro_op, "macro_exposure": macro_exposure,
             "execution_cap": execution_cap, "current_exposure": _curr_exp,
+            "position_source": _position_source,
+            "open_buy_orders": _open_buy_orders,
+            "open_sell_orders": _open_sell_orders,
             "execution_note": execution_note}
 
 # ─── CAPITULAÇÃO 25% ────────────────────────────────────────────────────────
@@ -750,7 +857,7 @@ def _linhas_diarias(last: pd.Series, fr: float) -> dict:
 
 
 # ─── MENSAGENS ───────────────────────────────────────────────────────────────
-RODAPE = "_BTC Setup v204.29 · GitHub Actions_"
+RODAPE = "_BTC Setup v204.31 · GitHub Actions_"
 
 def _corpo(last, dec, cap, nat):
     preco = float(last["PriceUSD"])
@@ -767,7 +874,7 @@ def _corpo(last, dec, cap, nat):
     if nat["aviso"]:
         preco_txt += f"\n{nat['aviso']}"
 
-    # v204.29: mantém os valores das linhas apenas no bloco de mercado.
+    # v204.31: mantém os valores das linhas apenas no bloco de mercado.
     # A recomposição abaixo é leitura operacional, sem repetir os mesmos números.
     msg  = f"💰 *Preço diário fechado:* {preco_txt}\n"
     msg += f"📊 *Diário fechado:* FR {fr:.4f}  |  VFL {vfl_s}\n"
@@ -789,8 +896,15 @@ def _corpo(last, dec, cap, nat):
         msg += "Filtro/cap de execução limita novo aumento; não é ordem de venda da posição existente.\n"
         curr = dec.get("current_exposure")
         cap_exec = dec.get("execution_cap")
-        if np.isfinite(curr) and np.isfinite(cap_exec) and curr < cap_exec - 0.005:
-            msg += f"Como a posição atual é {curr*100:.0f}% e o cap liberado é {cap_exec*100:.0f}%, a ação prática é comprar até {cap_exec*100:.0f}%.\n"
+        if np.isfinite(curr) and np.isfinite(cap_exec):
+            if curr < cap_exec - 0.005:
+                msg += f"Posição real ~{curr*100:.0f}%: abaixo do cap {cap_exec*100:.0f}%; pode recompor até esse limite.\n"
+            elif curr <= cap_exec + 0.005:
+                msg += f"Posição real ~{curr*100:.0f}%: no cap {cap_exec*100:.0f}%; manter sem novo aumento.\n"
+            else:
+                msg += f"Posição real ~{curr*100:.0f}%: acima do cap {cap_exec*100:.0f}%; este filtro não manda vender.\n"
+        elif np.isfinite(cap_exec):
+            msg += f"Posição privada indisponível: abaixo de {cap_exec*100:.0f}% pode recompor até o cap; em {cap_exec*100:.0f}% manter; acima disso não vender por este filtro.\n"
     else:
         msg += "VFL vermelho mantém alvo macro 0%; desconto/FR baixo/linha dourada não liberam compra pela regra principal.\n"
         msg += "A única compra em VFL vermelho preservada é a exceção 25% completa, com volume, DD60 e dia negativo confirmados.\n"
@@ -863,7 +977,7 @@ def enviar(token: str, chat_id: str, texto: str) -> bool:
 # ─── MAIN ───────────────────────────────────────────────────────────────────
 def main():
     ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    print(f"[{ts}] BTC Setup Notify v204.29\n")
+    print(f"[{ts}] BTC Setup Notify v204.31\n")
 
     # 1. Dados
     print("1. Carregando dados...")
@@ -873,8 +987,18 @@ def main():
     dia  = str(last["time"])[:10]
     print(f"  Último dia: {dia} | Preço: ${last['PriceUSD']:,.0f}")
 
-    # 2. Análises
-    dec = calcular_decisao(last)
+    # 2. Contexto privado mínimo + análises
+    print("\n2. Consultando contexto privado mínimo (opcional)...")
+    position_context = carregar_contexto_privado()
+    if position_context.get("available"):
+        print(
+            f"  Binance privada: exposição ~{position_context['current_exposure']*100:.1f}% | "
+            f"ordens abertas C={position_context['open_buy_orders']} V={position_context['open_sell_orders']}"
+        )
+    else:
+        print("  Modo genérico por alvo/cap.")
+
+    dec = calcular_decisao(last, position_context)
     cap = calcular_cap25(last)
     print(f"  Decisão: {dec['emoji']} {dec['op']}")
     vt  = f"{cap['volMult']:.2f}x" if cap["volMult"] else "—"
@@ -882,7 +1006,7 @@ def main():
     print(f"  Cap 25%: ativa={cap['ativa']} vol={vt} dd60={dt}")
 
     # 3. Estado
-    print("\n2. Verificando estado...")
+    print("\n3. Verificando estado...")
     estado_ant   = carregar_estado()
     estado_atual = extrair_estado(last, dec, cap)
     mudancas     = detectar_mudancas(estado_ant, estado_atual)
@@ -898,7 +1022,7 @@ def main():
 
     # 4. Enviar
     if mudancas:
-        print(f"\n3. Enviando mudança ({len(mudancas)})...")
+        print(f"\n4. Enviando mudança ({len(mudancas)})...")
         msg = montar_mudanca(last, dec, cap, nat, mudancas, ressalvas)
         print(f"\n{'─'*50}\n{msg}\n{'─'*50}")
         ok  = enviar(TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, msg)
@@ -909,7 +1033,7 @@ def main():
         estado_atual["last_daily_ping_date"] = dia
 
     elif heartbeat:
-        print(f"\n3. Enviando heartbeat (nova data: {dia})...")
+        print(f"\n4. Enviando heartbeat (nova data: {dia})...")
         msg = montar_heartbeat(last, dec, cap, nat, estado_ant, ressalvas)
         print(f"\n{'─'*50}\n{msg}\n{'─'*50}")
         ok  = enviar(TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, msg)
@@ -917,7 +1041,7 @@ def main():
         estado_atual["last_daily_ping_date"] = dia
 
     else:
-        print("\n3. Nenhuma mudança, heartbeat já enviado hoje — silêncio.")
+        print("\n4. Nenhuma mudança, heartbeat já enviado hoje — silêncio.")
         # Preservar last_daily_ping_date anterior para não repetir heartbeat
         estado_atual["last_daily_ping_date"] = estado_ant.get("last_daily_ping_date")
 
