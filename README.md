@@ -37,4 +37,34 @@ A senha é digitada no modal **Operações e histórico**. O servidor valida a s
 - Sem sessão válida, `/api/binance/account` responde 401 e não retorna saldo, trades nem ordens.
 - Com sessão válida, `BTC em posição` recebe o saldo BTC total real (livre + bloqueado) e `USDT disponível` recebe o saldo USDT livre real.
 - Ordens abertas BTCUSDT aparecem em modo somente leitura via endpoint USER_DATA da Binance; o painel não contém rota de criar/cancelar ordem.
-- O custo médio só é usado no PnL quando o histórico BTCUSDT reconcilia com o saldo BTC real; caso contrário aparece como estimativa e não sobrescreve o preço médio operacional.
+- O custo médio é usado no PnL quando pode ser reconstruído pelas operações BTCUSDT; quando reconcilia com o saldo BTC real aparece como `reconciliado`, e quando há reconstrução válida sem reconciliação perfeita aparece como `estimado`.
+
+
+## Telegram — contexto privado mínimo
+
+O workflow `.github/workflows/btc_notify.yml` continua funcionando mesmo sem acesso à carteira. Quando a posição privada não puder ser consultada, a mensagem usa apenas **alvo macro + cap de execução**, sem presumir que a carteira está em 0%, 50% ou qualquer outro valor.
+
+Quando executado no GitHub Actions da branch `main`, o notifier solicita um token OIDC efêmero do próprio GitHub e chama:
+
+`/api/binance/notify-context`
+
+Esse endpoint valida criptograficamente que a chamada veio especificamente de `lucianox777/btc-setup-notify/.github/workflows/btc_notify.yml@refs/heads/main`. Não é necessário copiar `BINANCE_API_KEY`, `BINANCE_API_SECRET` nem a senha do painel para o GitHub.
+
+O endpoint devolve somente o contexto mínimo necessário ao Telegram:
+
+- exposição BTC/USDT aproximada em percentual;
+- quantidade de ordens BTCUSDT de compra abertas;
+- quantidade de ordens BTCUSDT de venda abertas;
+- horário e região de execução.
+
+Ele **não devolve** saldo exato em BTC/USDT, custo médio, PnL nem histórico de trades. A função também roda em `gru1`.
+
+Se OIDC, Vercel ou Binance estiverem indisponíveis, o Telegram não falha: volta automaticamente para a leitura genérica por alvo/cap. Exemplo:
+
+`MACRO 100% · CAP 50%`
+
+- abaixo de 50% → pode recompor até o cap;
+- em 50% → manter;
+- acima de 50% → o cap não manda vender.
+
+Quando o contexto privado estiver disponível, a mensagem acrescenta somente algo como `exposição ~47% · ordens abertas C 1 / V 0`.
